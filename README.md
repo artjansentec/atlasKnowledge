@@ -1,75 +1,126 @@
-# React + TypeScript + Vite
+# Atlas Knowledge
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Atlas Knowledge é um protótipo de wiki corporativa para centralizar conhecimento de projetos em um único lugar. A proposta é reunir documentação, decisões, arquivos, histórico de mudanças e lições aprendidas para que equipes consigam encontrar contexto rapidamente, reduzir retrabalho e transformar experiências passadas em material reutilizável.
 
-Currently, two official plugins are available:
+O produto parte da ideia de que conhecimento importante costuma ficar espalhado entre conversas, documentos soltos, arquivos locais e memória das pessoas. O Atlas Knowledge organiza esse conteúdo por projeto e oferece uma experiência visual para consultar, editar e buscar informações relevantes.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Ideia do projeto
 
-## React Compiler
+O objetivo do Atlas Knowledge é funcionar como uma base de conhecimento interna para equipes de produto, engenharia, operação e áreas de negócio. Cada projeto possui sua própria página com documentação em Markdown, responsáveis, status, tecnologias, anexos, lições aprendidas e histórico.
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+Na prática, a aplicação ajuda a responder perguntas como:
 
-Note: This will impact Vite dev & build performances.
+- O que esse projeto faz e qual é o seu escopo?
+- Quem é a pessoa responsável?
+- Quais decisões já foram tomadas?
+- Quais documentos e arquivos estão relacionados?
+- Que aprendizados podem orientar próximos projetos?
+- O que mudou recentemente?
 
-## Expanding the ESLint configuration
+Além de organizar projetos ativos, a ideia também é preservar conhecimento de projetos pausados ou concluídos, mantendo decisões e aprendizados acessíveis para novas iniciativas.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Funcionalidades atuais
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- Dashboard com indicadores de projetos, documentos, lições e atualizações recentes.
+- Listagem de projetos com busca local, filtros por status e cards resumidos.
+- Página de detalhe do projeto com abas para documentação, arquivos, lições e histórico.
+- Leitor de documentação com navegação por seções e modo de leitura em tela cheia.
+- Editor Markdown com preview lado a lado para simular atualização de conteúdo.
+- Central de lições aprendidas com busca por título, descrição, recomendação, projeto ou responsável.
+- Busca global por projetos, seções, lições e atualizações.
+- Tela de criação de projeto com prévia visual e documentação inicial em Markdown.
+- Tela de login demonstrativa para representar o acesso corporativo.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## Fluxo principal
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+1. O usuário acessa a aplicação pela tela de login demonstrativa.
+2. No dashboard, visualiza um resumo da base de conhecimento e as atualizações recentes.
+3. Em projetos, filtra iniciativas por status ou busca por termos relacionados.
+4. Ao abrir um projeto, consulta documentação, anexos, lições aprendidas e histórico.
+5. Quando necessário, edita uma seção em Markdown e acompanha o preview antes de salvar.
+6. Em lições ou busca global, encontra rapidamente aprendizados e conteúdos reutilizáveis.
+
+## Estado atual do protótipo
+
+O projeto usa dados locais tipados em TypeScript para representar projetos, documentos, anexos, lições e histórico. A criação de projeto salva uma demonstração no navegador, mas a lista compartilhada ainda depende de integração futura com uma camada de persistência.
+
+Recursos planejados ou sugeridos pelo próprio protótipo:
+
+- Persistência real de documentos e projetos.
+- Upload real de anexos.
+- Auditoria completa de alterações.
+- Ranking de busca por relevância.
+- Filtros avançados por responsável, status e área.
+- Sugestões automáticas com IA.
+- Templates de documentação por tipo de projeto.
+- Métricas de uso por área.
+- Geração automática de documentação a partir de transcrições de reuniões.
+
+## Stack
+
+- React
+- TypeScript
+- Vite
+- React Router
+- Lucide React
+- ESLint
+
+## Estrutura geral
+
+```text
+src/
+  components/      Componentes reutilizáveis da interface
+  lib/             Dados e funções utilitárias dos projetos
+  pages/           Telas principais da aplicação
+  pages/css/       Estilos específicos de cada página
+  App.tsx          Definição das rotas
+  index.css        Tokens visuais, tema e estilos globais
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Como rodar
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+Instale as dependências:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
 ```
+
+Inicie o ambiente de desenvolvimento:
+
+```bash
+npm run dev
+```
+
+Gere a build de produção:
+
+```bash
+npm run build
+```
+
+Execute a verificação de lint:
+
+```bash
+npm run lint
+```
+
+Visualize a build localmente:
+
+```bash
+npm run preview
+```
+
+## Rotas principais
+
+- `/login`: tela de entrada demonstrativa.
+- `/`: dashboard com visão geral.
+- `/projects`: listagem e filtros de projetos.
+- `/projects/new`: criação local de um novo projeto.
+- `/projects/:slug`: detalhe de um projeto.
+- `/lessons`: central de lições aprendidas.
+- `/search`: busca global.
+
+## Visão de produto
+
+O Atlas Knowledge busca ser mais do que um repositório de documentos. A intenção é criar uma memória operacional da empresa: um lugar onde contexto, decisões e aprendizados fiquem conectados aos projetos que os originaram.
+
+Com isso, novos membros conseguem se ambientar mais rápido, equipes evitam repetir erros já identificados e lideranças têm mais clareza sobre o estado e o histórico das iniciativas.
