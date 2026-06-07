@@ -1,0 +1,26 @@
+.status-badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.status-badge--active {
+  color: #1d7c2a;
+  background: rgba(56, 173, 72, 0.14);
+}
+
+.status-badge--paused {
+  color: #9a5f00;
+  background: rgba(245, 158, 11, 0.16);
+}
+
+.status-badge--done {
+  color: #4f46e5;
+  background: rgba(79, 70, 229, 0.12);
+}

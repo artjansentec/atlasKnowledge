@@ -1,0 +1,55 @@
+.markdown-view {
+  color: var(--foreground);
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+.markdown-view > *:first-child {
+  margin-top: 0;
+}
+
+.markdown-view h1,
+.markdown-view h2,
+.markdown-view h3 {
+  color: var(--text-h);
+  line-height: 1.12;
+}
+
+.markdown-view h1 {
+  margin: 0 0 22px;
+  font-size: clamp(30px, 4vw, 42px);
+}
+
+.markdown-view h2 {
+  margin: 32px 0 12px;
+  font-size: 24px;
+}
+
+.markdown-view h3 {
+  margin: 26px 0 10px;
+  font-size: 18px;
+}
+
+.markdown-view p {
+  margin: 14px 0 0;
+}
+
+.markdown-view ul {
+  display: grid;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding-left: 22px;
+}
+
+.markdown-view li::marker {
+  color: var(--primary);
+}
+
+.markdown-view blockquote {
+  margin: 24px 0 0;
+  border-left: 3px solid var(--primary);
+  border-radius: 12px;
+  padding: 14px 16px;
+  color: color-mix(in oklch, var(--foreground) 84%, transparent);
+  background: rgba(56, 173, 72, 0.07);
+}
