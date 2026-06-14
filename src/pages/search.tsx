@@ -13,6 +13,7 @@ type SearchResult = {
   title: string
   snippet: string
   meta: string
+  href: string
   projectSlug: string
   projectName: string
 }
@@ -140,7 +141,11 @@ function SearchPage() {
       ) : (
         <section className="search-results" aria-label="Resultados da busca">
           {visibleResults.map((result) => (
-            <Link key={result.id} to={`/projects/${result.projectSlug}`} className="search-result">
+            <Link
+              key={result.id}
+              to={result.href}
+              className="search-result"
+            >
               <ResultIcon type={result.type} />
 
               <div className="search-result__content">
@@ -175,6 +180,7 @@ function buildSearchResults(query: string): SearchResult[] {
           title: project.name,
           snippet: project.description,
           meta: `Responsável: ${project.responsible} · Atualizado em ${formatDateBR(project.updatedAt)}`,
+          href: `/projects/${project.slug}`,
           projectSlug: project.slug,
           projectName: project.name,
         },
@@ -188,6 +194,7 @@ function buildSearchResults(query: string): SearchResult[] {
         title: section.title,
         snippet: section.content,
         meta: `${sections.length} seções no projeto`,
+        href: `/projects/${project.slug}?section=${encodeURIComponent(section.id)}`,
         projectSlug: project.slug,
         projectName: project.name,
       }))
@@ -200,6 +207,7 @@ function buildSearchResults(query: string): SearchResult[] {
         meta: `Lição aprendida · ${project.responsible}${
           lesson.tags?.length ? ` · Tags: ${lesson.tags.map((tag) => `#${tag}`).join(' ')}` : ''
         }`,
+        href: `/projects/${project.slug}?tab=lessons`,
         projectSlug: project.slug,
         projectName: project.name,
       }))
@@ -210,6 +218,7 @@ function buildSearchResults(query: string): SearchResult[] {
         title: history.action,
         snippet: `Atualização em ${history.target}.`,
         meta: formatDateBR(history.at),
+        href: `/projects/${project.slug}?tab=history`,
         projectSlug: project.slug,
         projectName: project.name,
       }))

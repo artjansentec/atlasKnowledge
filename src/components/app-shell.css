@@ -101,12 +101,14 @@
   text-decoration: none;
   transition:
     background 0.15s ease,
-    color 0.15s ease;
+    color 0.15s ease,
+    transform 0.18s ease;
 }
 
 .app-shell__nav-link:hover {
   background: color-mix(in oklch, var(--color-sidebar-accent) 60%, transparent);
   color: var(--color-foreground);
+  transform: translateX(2px);
 }
 
 .app-shell__nav-link--active {
@@ -121,6 +123,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--color-primary);
+  animation: app-shell-dot-in 0.22s ease-out;
 }
 
 .app-shell__sidebar-footer {
@@ -196,8 +199,13 @@
 }
 
 .app-shell__logout-button:hover {
-  background: color-mix(in oklch, var(--color-sidebar-accent) 60%, transparent);
-  color: var(--color-foreground);
+  background: color-mix(in oklch, var(--color-destructive) 10%, transparent);
+  color: var(--color-destructive);
+}
+
+.app-shell__logout-button:active {
+  background: color-mix(in oklch, var(--color-destructive) 16%, transparent);
+  color: var(--color-destructive);
 }
 
 .app-shell__ai-card {
@@ -316,8 +324,42 @@
 }
 
 .app-shell__content {
+  position: relative;
   min-width: 0;
   flex: 1;
+  overflow-x: hidden;
+}
+
+.app-shell__route-view {
+  min-height: 100%;
+  animation: app-shell-route-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  will-change: opacity, transform, filter;
+}
+
+@keyframes app-shell-route-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.992);
+    filter: blur(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes app-shell-dot-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .app-shell__brand:focus-visible,
@@ -325,4 +367,17 @@
 .app-shell__logout-button:focus-visible {
   outline: 2px solid var(--color-ring);
   outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell__nav-link,
+  .app-shell__nav-dot,
+  .app-shell__route-view {
+    animation: none;
+    transition: none;
+  }
+
+  .app-shell__nav-link:hover {
+    transform: none;
+  }
 }

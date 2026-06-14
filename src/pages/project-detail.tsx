@@ -1,5 +1,5 @@
 import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import {
   type SelectChangeEvent,
 } from '@mui/material'
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowLeft,
   ArrowUp,
@@ -29,22 +30,28 @@ import {
   Paperclip,
   PencilLine,
   Plus,
+  Rocket,
   Save,
   Tag,
   Trash2,
+  Trophy,
   Users,
   X,
 } from 'lucide-react'
 import { confirmDanger, showToast } from '../components/app-alerts'
 import { MarkdownView } from '../components/markdown-view'
 import { StatusBadge } from '../components/status-badge'
+import { canManageProject } from '../lib/auth'
 import { formatDateBR } from '../lib/date'
 import {
   flattenSections,
   getProject,
+  lessonTypeLabels,
+  lessonTypeOptions,
   type Project,
   type ProjectAttachment,
   type ProjectLesson,
+  type ProjectLessonType,
   type ProjectStatus,
   type Section,
 } from '../lib/projects'
@@ -56,11 +63,25 @@ type MoveDirection = 'up' | 'down'
 type CarouselDirection = 'previous' | 'next'
 type SectionOption = { id: string; title: string; depth: number }
 
-const currentUserName = 'Marina Alves'
+const projectTabs: Tab[] = ['doc', 'files', 'lessons', 'history']
 const responsibleOptions = ['Marina Alves', 'Rafael Costa', 'Bianca Souza', 'Lucas Lima', 'Camila Rocha', 'Pedro Nunes']
+const emptyLessonDraft = {
+  type: 'success' as ProjectLessonType,
+  title: '',
+  description: '',
+  recommendation: '',
+  tags: '',
+}
+const lessonTypeIcons: Record<ProjectLessonType, typeof Lightbulb> = {
+  problem: AlertTriangle,
+  attention: Eye,
+  future: Rocket,
+  success: Trophy,
+}
 
-function canManageProject(project: Project) {
-  return project.responsible === currentUserName || Boolean(project.readers?.includes(currentUserName))
+function getTabFromSearchParams(searchParams: URLSearchParams): Tab {
+  const tab = searchParams.get('tab')
+  return projectTabs.includes(tab as Tab) ? (tab as Tab) : 'doc'
 }
 
 function createSectionId() {
@@ -194,8 +215,10 @@ function getAttachmentCitationLocations(
 
 function ProjectDetailPage() {
   const { slug } = useParams()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = getTabFromSearchParams(searchParams)
+  const requestedSectionId = searchParams.get('section')
   const project = getProject(slug)
-  const [tab, setTab] = useState<Tab>('doc')
   const [tabAnimationStep, setTabAnimationStep] = useState(0)
   const [projectDetails, setProjectDetails] = useState<Project | undefined>(() => project)
   const [sections, setSections] = useState<Section[]>(() => project?.sections ?? [])
@@ -222,6 +245,7 @@ function ProjectDetailPage() {
   const nextSection = activeIndex >= 0 ? flatSections[activeIndex + 1]?.section : undefined
   const displayedProject = projectDetails ?? project
   const canManage = displayedProject ? canManageProject(displayedProject) : false
+  const tab = requestedTab
   const previewCitationLocations = previewAttachment
     ? getAttachmentCitationLocations(previewAttachment, flatSections, savedDrafts)
     : []
@@ -265,6 +289,24 @@ function ProjectDetailPage() {
     setSectionTitleDraft('')
     setPreviewAttachment(null)
   }, [project])
+
+  useEffect(() => {
+    if (!project || tab !== 'doc' || !requestedSectionId) return
+
+    const targetSection = flattenSections(project.sections).find((item) => item.section.id === requestedSectionId)?.section
+    if (!targetSection) return
+
+    if (fullscreenCloseTimeoutRef.current) {
+      window.clearTimeout(fullscreenCloseTimeoutRef.current)
+      fullscreenCloseTimeoutRef.current = null
+    }
+    setActiveId(targetSection.id)
+    setDraft(savedDrafts[targetSection.id] ?? targetSection.content)
+    setEditing(false)
+    setFullscreen(true)
+    setFullscreenClosing(false)
+    setCarouselDirection('next')
+  }, [project, requestedSectionId, savedDrafts, tab])
 
   if (!project) return <Navigate to="/projects" replace />
 
@@ -456,7 +498,14 @@ function ProjectDetailPage() {
   function changeTab(nextTab: Tab) {
     if (nextTab === tab) return
 
-    setTab(nextTab)
+    const nextSearchParams = new URLSearchParams(searchParams)
+    if (nextTab === 'doc') {
+      nextSearchParams.delete('tab')
+    } else {
+      nextSearchParams.set('tab', nextTab)
+    }
+
+    setSearchParams(nextSearchParams, { replace: true })
     setTabAnimationStep((current) => current + 1)
   }
 
@@ -854,7 +903,7 @@ function DocView({
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => insertAttachmentCitation(attachment)}
                       >
-                        <Paperclip size={13} aria-hidden="true" />
+                        <Paperclip size={11} aria-hidden="true" />
                         {attachment.name}
                       </button>
                     ))}
@@ -1244,6 +1293,10 @@ function ProjectInfo({
     setTechDraft('')
   }, [project])
 
+  useEffect(() => {
+    if (!canManage) setEditing(false)
+  }, [canManage])
+
   function updateDraft<Field extends keyof typeof draft>(field: Field, value: (typeof draft)[Field]) {
     setDraft((current) => ({ ...current, [field]: value }))
   }
@@ -1314,6 +1367,7 @@ function ProjectInfo({
 
   function submitProjectInfo(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!canManage) return
 
     const name = draft.name.trim()
     const description = draft.description.trim()
@@ -1337,7 +1391,7 @@ function ProjectInfo({
     setEditing(false)
   }
 
-  if (editing) {
+  if (editing && canManage) {
     const responsibleSelectOptions = Array.from(new Set([draft.responsible, ...responsibleOptions].filter(Boolean)))
     const tags = parseList(draft.tags, true)
     const tech = parseList(draft.tech)
@@ -1566,6 +1620,7 @@ function RelatedLessons({ lessons }: { lessons: ProjectLesson[] }) {
       <ul className="project-detail__lessons">
         {lessons.slice(0, 3).map((lesson) => (
           <li key={lesson.id}>
+            <LessonTypeBadge type={lesson.type} compact />
             <strong>{lesson.title}</strong>
             <span>{lesson.description}</span>
             {Boolean(lesson.tags?.length) && (
@@ -1579,6 +1634,79 @@ function RelatedLessons({ lessons }: { lessons: ProjectLesson[] }) {
         ))}
       </ul>
     </div>
+  )
+}
+
+function LessonTypeBadge({ type, compact = false }: { type: ProjectLessonType; compact?: boolean }) {
+  const Icon = lessonTypeIcons[type]
+
+  return (
+    <span className={`project-lesson-type project-lesson-type--${type}${compact ? ' project-lesson-type--compact' : ''}`}>
+      <Icon size={compact ? 11 : 13} aria-hidden="true" />
+      {lessonTypeLabels[type]}
+    </span>
+  )
+}
+
+function LessonTypeIcon({ type, size }: { type: ProjectLessonType; size: number }) {
+  const Icon = lessonTypeIcons[type]
+  return <Icon size={size} aria-hidden="true" />
+}
+
+function LessonTypeSelectOption({
+  option,
+  compact = false,
+}: {
+  option: { value: ProjectLessonType; label: string; description: string }
+  compact?: boolean
+}) {
+  return (
+    <span className={`project-lesson-type-option project-lesson-type-option--${option.value}`}>
+      <span className="project-lesson-type-option__dot" aria-hidden="true" />
+      <span>
+        <strong>{option.label}</strong>
+        {!compact && <small>{option.description}</small>}
+      </span>
+    </span>
+  )
+}
+
+function LessonTypeGuide({
+  selectedType,
+  onSelectType,
+}: {
+  selectedType: ProjectLessonType | null
+  onSelectType: (type: ProjectLessonType) => void
+}) {
+  return (
+    <section className="project-lesson-guide" aria-label="Significado dos status de lição">
+      <div>
+        <span className="eyebrow eyebrow--accent">// guia de status</span>
+        <h2>Como classificar uma lição?</h2>
+      </div>
+
+      <div className="project-lesson-guide__grid">
+        {lessonTypeOptions.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            className={`project-lesson-guide__item project-lesson-guide__item--${option.value}${
+              selectedType === option.value ? ' project-lesson-guide__item--active' : ''
+            }`}
+            aria-pressed={selectedType === option.value}
+            onClick={() => onSelectType(option.value)}
+          >
+            <span>
+              <LessonTypeIcon type={option.value} size={16} />
+            </span>
+            <div>
+              <strong>{option.label}</strong>
+              <p>{option.description}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
   )
 }
 
@@ -1808,7 +1936,11 @@ function FilesView({
 }) {
   const [selectedAttachment, setSelectedAttachment] = useState<ProjectAttachment | null>(attachments[0] ?? null)
 
-  function openAttachment(attachment: ProjectAttachment) {
+  function selectAttachment(attachment: ProjectAttachment) {
+    setSelectedAttachment(attachment)
+  }
+
+  function viewAttachment(attachment: ProjectAttachment) {
     setSelectedAttachment(attachment)
     onOpenAttachment(attachment)
   }
@@ -1847,48 +1979,43 @@ function FilesView({
           {attachments.map((attachment) => (
             <article
               key={attachment.id}
-              className="project-file-card"
-              role="button"
-              tabIndex={0}
-              onClick={() => openAttachment(attachment)}
-              onKeyDown={(event) => {
-                if (event.key !== 'Enter' && event.key !== ' ') return
-                event.preventDefault()
-                openAttachment(attachment)
-              }}
+              className={`project-file-card${selectedAttachment?.id === attachment.id ? ' project-file-card--selected' : ''}`}
             >
-              <FileIcon type={attachment.type} />
-              <div>
-                <h3>{attachment.name}</h3>
-                <span>
-                  {attachment.type.toUpperCase()} · {attachment.size}
-                </span>
-                <p>Enviado em {formatDateBR(attachment.uploadedAt)}</p>
-              </div>
               <button
                 type="button"
-                className="project-detail__ghost-btn project-detail__ghost-btn--compact"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  openAttachment(attachment)
-                }}
+                className="project-file-card__main"
+                aria-pressed={selectedAttachment?.id === attachment.id}
+                onClick={() => selectAttachment(attachment)}
               >
-                <Eye size={14} aria-hidden="true" />
-                Ver
+                <FileIcon type={attachment.type} />
+                <div>
+                  <h3>{attachment.name}</h3>
+                  <span>
+                    {attachment.type.toUpperCase()} · {attachment.size}
+                  </span>
+                  <p>Enviado em {formatDateBR(attachment.uploadedAt)}</p>
+                </div>
               </button>
-              {canManage && (
+              <div className="project-file-card__actions">
                 <button
                   type="button"
-                  className="project-detail__danger-btn project-detail__danger-btn--compact"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onDeleteAttachment(attachment)
-                  }}
+                  className="project-detail__ghost-btn project-detail__ghost-btn--compact"
+                  onClick={() => viewAttachment(attachment)}
                 >
-                  <Trash2 size={14} aria-hidden="true" />
-                  Apagar
+                  <Eye size={14} aria-hidden="true" />
+                  Ver
                 </button>
-              )}
+                {canManage && (
+                  <button
+                    type="button"
+                    className="project-detail__danger-btn project-detail__danger-btn--compact"
+                    onClick={() => onDeleteAttachment(attachment)}
+                  >
+                    <Trash2 size={14} aria-hidden="true" />
+                    Apagar
+                  </button>
+                )}
+              </div>
             </article>
           ))}
         </div>
@@ -1925,25 +2052,38 @@ function LessonsView({
   onUpdateLesson: (lessonId: string, lesson: Omit<ProjectLesson, 'id' | 'createdAt'>) => void
 }) {
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null)
-  const [draft, setDraft] = useState({
-    title: '',
-    description: '',
-    recommendation: '',
-    tags: '',
-  })
+  const [selectedLessonType, setSelectedLessonType] = useState<ProjectLessonType | null>(null)
+  const [draft, setDraft] = useState(emptyLessonDraft)
+  const visibleLessons = selectedLessonType ? lessons.filter((lesson) => lesson.type === selectedLessonType) : lessons
 
-  function updateDraft(field: keyof typeof draft, value: string) {
+  useEffect(() => {
+    if (!canManage) {
+      setEditingLessonId(null)
+      setDraft({ ...emptyLessonDraft })
+    }
+  }, [canManage])
+
+  function toggleLessonType(type: ProjectLessonType) {
+    setSelectedLessonType((current) => (current === type ? null : type))
+  }
+
+  function updateDraft<Field extends keyof typeof draft>(field: Field, value: (typeof draft)[Field]) {
     setDraft((current) => ({ ...current, [field]: value }))
   }
 
   function startCreation() {
+    if (!canManage) return
+
     setEditingLessonId('new')
-    setDraft({ title: '', description: '', recommendation: '', tags: '' })
+    setDraft({ ...emptyLessonDraft })
   }
 
   function startEditing(lesson: ProjectLesson) {
+    if (!canManage) return
+
     setEditingLessonId(lesson.id)
     setDraft({
+      type: lesson.type,
       title: lesson.title,
       description: lesson.description,
       recommendation: lesson.recommendation,
@@ -1953,11 +2093,12 @@ function LessonsView({
 
   function cancelEditingLesson() {
     setEditingLessonId(null)
-    setDraft({ title: '', description: '', recommendation: '', tags: '' })
+    setDraft({ ...emptyLessonDraft })
   }
 
   function submitLesson(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!canManage) return
 
     const title = draft.title.trim()
     const description = draft.description.trim()
@@ -1970,9 +2111,9 @@ function LessonsView({
     }
 
     if (editingLessonId === 'new') {
-      onAddLesson({ title, description, recommendation, tags })
+      onAddLesson({ type: draft.type, title, description, recommendation, tags })
     } else if (editingLessonId) {
-      onUpdateLesson(editingLessonId, { title, description, recommendation, tags })
+      onUpdateLesson(editingLessonId, { type: draft.type, title, description, recommendation, tags })
     }
 
     cancelEditingLesson()
@@ -1980,6 +2121,8 @@ function LessonsView({
 
   return (
     <section className="project-lessons-panel">
+      <LessonTypeGuide selectedType={selectedLessonType} onSelectType={toggleLessonType} />
+
       {canManage && (
         <div className="project-lessons-panel__actions">
           <button type="button" className="project-detail__primary-btn" onClick={startCreation}>
@@ -1990,6 +2133,43 @@ function LessonsView({
       )}
       {canManage && editingLessonId && (
         <form className="project-lesson-form" onSubmit={submitLesson}>
+          <label className="project-lesson-form__select-field">
+            Tipo da lição
+            <FormControl className="project-lesson-form__mui-field" size="small" fullWidth>
+              <Select
+                value={draft.type}
+                onChange={(event: SelectChangeEvent<ProjectLessonType>) =>
+                  updateDraft('type', event.target.value as ProjectLessonType)
+                }
+                renderValue={(value) => {
+                  const selectedOption = lessonTypeOptions.find((option) => option.value === value)
+                  return selectedOption ? <LessonTypeSelectOption option={selectedOption} compact /> : null
+                }}
+                MenuProps={{
+                  slotProps: {
+                    paper: {
+                      sx: {
+                        border: '1px solid var(--border)',
+                        borderRadius: '12px',
+                        backgroundColor: 'var(--surface)',
+                        boxShadow: 'var(--shadow)',
+                        mt: 0.5,
+                      },
+                    },
+                  },
+                }}
+              >
+                {lessonTypeOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    <LessonTypeSelectOption option={option} />
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <span className="project-lesson-form__hint">
+              {lessonTypeOptions.find((option) => option.value === draft.type)?.description}
+            </span>
+          </label>
           <label>
             Título
             <input
@@ -2035,20 +2215,26 @@ function LessonsView({
       )}
       {lessons.length === 0 ? (
         <EmptyState icon={Lightbulb} text="Nenhuma lição registrada ainda." />
+      ) : visibleLessons.length === 0 ? (
+        <EmptyState icon={Lightbulb} text="Nenhuma lição encontrada para este status." />
       ) : (
-        lessons.map((lesson) => (
+        visibleLessons.map((lesson) => (
           <article
             key={lesson.id}
-            className="project-lesson-card"
+            className={`project-lesson-card project-lesson-card--${lesson.type}`}
             data-ai-lesson-id={lesson.id}
+            data-ai-lesson-type={lesson.type}
             data-ai-tags={lesson.tags?.join(',') ?? ''}
           >
             <div className="project-lesson-card__icon">
-              <Lightbulb size={20} aria-hidden="true" />
+              <LessonTypeIcon type={lesson.type} size={20} />
             </div>
             <div>
               <header>
-                <h2>{lesson.title}</h2>
+                <div className="project-lesson-card__title">
+                  <h2>{lesson.title}</h2>
+                  <LessonTypeBadge type={lesson.type} />
+                </div>
                 <span>{formatDateBR(lesson.createdAt)}</span>
                 {canManage && (
                   <div className="project-lesson-card__actions">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowRight,
@@ -12,6 +12,7 @@ import {
   UserRound,
 } from 'lucide-react'
 import { MarkdownView } from '../components/markdown-view'
+import { isCurrentUserAdmin } from '../lib/auth'
 import { statusLabels, type ProjectStatus } from '../lib/projects'
 import './css/project-create.css'
 
@@ -46,6 +47,7 @@ function ProjectCreatePage() {
   const navigate = useNavigate()
   const [draft, setDraft] = useState(initialDraft)
   const [slugTouched, setSlugTouched] = useState(false)
+  const canCreateProjects = isCurrentUserAdmin()
 
   useEffect(() => {
     document.title = 'Novo projeto · Atlas Knowledge'
@@ -55,6 +57,8 @@ function ProjectCreatePage() {
   const tech = useMemo(() => splitList(draft.tech), [draft.tech])
   const previewName = draft.name.trim() || 'Novo projeto'
   const previewSlug = draft.slug.trim() || slugify(previewName)
+
+  if (!canCreateProjects) return <Navigate to="/projects" replace />
 
   function updateDraft<Key extends keyof NewProjectDraft>(key: Key, value: NewProjectDraft[Key]) {
     setDraft((current) => {
@@ -70,6 +74,7 @@ function ProjectCreatePage() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!canCreateProjects) return
 
     const now = new Date().toISOString().slice(0, 10)
     const project = {

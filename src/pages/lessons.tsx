@@ -1,12 +1,75 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowUpRight, Calendar, FolderKanban, Lightbulb, Search } from 'lucide-react'
+import { AlertTriangle, ArrowUpRight, Calendar, Eye, FolderKanban, Lightbulb, Rocket, Search, Trophy } from 'lucide-react'
 import { formatDateBR } from '../lib/date'
-import { projects } from '../lib/projects'
+import { lessonTypeLabels, lessonTypeOptions, projects, type ProjectLessonType } from '../lib/projects'
 import './css/lessons.css'
+
+const lessonTypeIcons: Record<ProjectLessonType, typeof Lightbulb> = {
+  problem: AlertTriangle,
+  attention: Eye,
+  future: Rocket,
+  success: Trophy,
+}
+
+function LessonTypeBadge({ type }: { type: ProjectLessonType }) {
+  const Icon = lessonTypeIcons[type]
+
+  return (
+    <span className={`lesson-card__type lesson-card__type--${type}`}>
+      <Icon size={13} aria-hidden="true" />
+      {lessonTypeLabels[type]}
+    </span>
+  )
+}
+
+function LessonTypeIcon({ type, size }: { type: ProjectLessonType; size: number }) {
+  const Icon = lessonTypeIcons[type]
+  return <Icon size={size} aria-hidden="true" />
+}
+
+function LessonTypeGuide({
+  selectedType,
+  onSelectType,
+}: {
+  selectedType: ProjectLessonType | null
+  onSelectType: (type: ProjectLessonType) => void
+}) {
+  return (
+    <section className="lessons-status-guide" aria-label="Significado dos status de lição">
+      <div>
+        <span className="eyebrow eyebrow--accent">// guia de status</span>
+        <h2>Como classificar uma lição?</h2>
+      </div>
+
+      <div className="lessons-status-guide__grid">
+        {lessonTypeOptions.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            className={`lessons-status-guide__item lessons-status-guide__item--${option.value}${
+              selectedType === option.value ? ' lessons-status-guide__item--active' : ''
+            }`}
+            aria-pressed={selectedType === option.value}
+            onClick={() => onSelectType(option.value)}
+          >
+            <span>
+              <LessonTypeIcon type={option.value} size={16} />
+            </span>
+            <div>
+              <strong>{option.label}</strong>
+              <p>{option.description}</p>
+            </div>
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
 
 function LessonsPage() {
   const [query, setQuery] = useState('')
+  const [selectedLessonType, setSelectedLessonType] = useState<ProjectLessonType | null>(null)
 
   useEffect(() => {
     document.title = 'Lições · Atlas Knowledge'
@@ -22,16 +85,30 @@ function LessonsPage() {
     const normalizedQuery = query.trim().toLowerCase()
 
     return lessons
-      .filter(({ title, description, recommendation, tags, project }) => {
+      .filter(({ title, description, recommendation, type, tags, project }) => {
+        if (selectedLessonType && type !== selectedLessonType) return false
         if (!normalizedQuery) return true
 
-        return [title, description, recommendation, tags?.join(' '), project.name, project.description, project.responsible]
+        return [
+          title,
+          description,
+          recommendation,
+          lessonTypeLabels[type],
+          tags?.join(' '),
+          project.name,
+          project.description,
+          project.responsible,
+        ]
           .join(' ')
           .toLowerCase()
           .includes(normalizedQuery)
       })
       .sort((a, b) => b.project.updatedAt.localeCompare(a.project.updatedAt))
-  }, [lessons, query])
+  }, [lessons, query, selectedLessonType])
+
+  function toggleLessonType(type: ProjectLessonType) {
+    setSelectedLessonType((current) => (current === type ? null : type))
+  }
 
   return (
     <div className="lessons-page">
@@ -66,6 +143,8 @@ function LessonsPage() {
         </label>
       </section>
 
+      <LessonTypeGuide selectedType={selectedLessonType} onSelectType={toggleLessonType} />
+
       {visibleLessons.length === 0 ? (
         <section className="lessons-empty">
           <Lightbulb size={34} aria-hidden="true" />
@@ -74,16 +153,17 @@ function LessonsPage() {
         </section>
       ) : (
         <section className="lessons-list" aria-label="Lista de lições aprendidas">
-          {visibleLessons.map(({ id, title, description, recommendation, createdAt, tags, project }) => (
+          {visibleLessons.map(({ id, title, description, recommendation, type, createdAt, tags, project }) => (
             <Link
               key={id}
-              to={`/projects/${project.slug}`}
-              className="lesson-card"
+              to={`/projects/${project.slug}?tab=lessons`}
+              className={`lesson-card lesson-card--${type}`}
               data-ai-lesson-id={id}
+              data-ai-lesson-type={type}
               data-ai-tags={tags?.join(',') ?? ''}
             >
-              <div className="lesson-card__icon">
-                <Lightbulb size={20} aria-hidden="true" />
+              <div className={`lesson-card__icon lesson-card__icon--${type}`}>
+                <LessonTypeIcon type={type} size={20} />
               </div>
 
               <div className="lesson-card__content">
@@ -99,6 +179,8 @@ function LessonsPage() {
                   <FolderKanban size={14} aria-hidden="true" />
                   {project.name}
                 </div>
+
+                <LessonTypeBadge type={type} />
 
                 <p>{description}</p>
 

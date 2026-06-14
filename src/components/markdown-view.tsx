@@ -69,12 +69,10 @@ function renderInlineContent(
           key={`${attachment.id}-${match.index}`}
           type="button"
           className="markdown-file-reference"
+          title={`${attachment.name} · ${attachment.type.toUpperCase()} · ${attachment.size}`}
           onClick={() => onOpenAttachment?.(attachment)}
         >
-          {attachment.name}
-          <small>
-            {attachment.type.toUpperCase()} · {attachment.size}
-          </small>
+          <span className="markdown-file-reference__name">{attachment.name}</span>
         </button>,
       )
     } else {

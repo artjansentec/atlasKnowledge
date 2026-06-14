@@ -10,6 +10,7 @@ import {
   Sparkles,
   UserCircle,
 } from 'lucide-react'
+import { currentUser, isCurrentUserAdmin } from '../lib/auth'
 import './app-shell.css'
 
 const navItems = [
@@ -18,6 +19,13 @@ const navItems = [
   { to: '/lessons', label: 'Lições', icon: Lightbulb },
   { to: '/search', label: 'Buscar', icon: Search },
 ] as const
+
+const currentUserInitials = currentUser.name
+  .split(' ')
+  .map((word) => word[0])
+  .slice(0, 2)
+  .join('')
+  .toUpperCase()
 
 function isNavActive(pathname: string, to: string) {
   if (to === '/') return pathname === '/'
@@ -28,6 +36,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const [q, setQ] = useState('')
+  const currentUserRoleLabel = isCurrentUserAdmin() ? 'Admin logado' : 'Usuário logado'
 
   function logout() {
     navigate('/login')
@@ -73,13 +82,13 @@ export function AppShell({ children }: { children?: ReactNode }) {
         <div className="app-shell__sidebar-footer">
           <div className="app-shell__profile-card">
             <div className="app-shell__profile-avatar bg-gradient-primary" aria-hidden="true">
-              MC
+              {currentUserInitials}
             </div>
             <div>
-              <strong>Marina Costa</strong>
+              <strong>{currentUser.name}</strong>
               <span>
                 <UserCircle size={12} aria-hidden="true" />
-                Cliente logado
+                {currentUserRoleLabel}
               </span>
             </div>
           </div>
@@ -128,7 +137,11 @@ export function AppShell({ children }: { children?: ReactNode }) {
           </form>
         </header>
 
-        <main className="app-shell__content">{children ?? <Outlet />}</main>
+        <main className="app-shell__content">
+          <div key={pathname} className="app-shell__route-view">
+            {children ?? <Outlet />}
+          </div>
+        </main>
       </div>
     </div>
   )

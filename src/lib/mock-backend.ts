@@ -1,4 +1,6 @@
-import geobPdfUrl from '../../mock/CT_GEOB_XXIV_2018_10.pdf?url'
+import { mockBackendFiles } from '../../mock/backend-files'
+import { mockProjects } from '../../mock/projects'
+import type { Project } from './projects'
 
 export type BackendFileRecord = {
   id: string
@@ -10,14 +12,24 @@ export type BackendFileRecord = {
   url: string
 }
 
-export const backendFiles = {
-  geobExamPdf: {
-    id: 'file-geob-xxiv-2018-10',
-    name: 'CT_GEOB_XXIV_2018_10.pdf',
-    type: 'pdf',
-    mimeType: 'application/pdf',
-    size: '6.3 MB',
-    uploadedAt: '2026-06-13',
-    url: geobPdfUrl,
+export const backendFiles = mockBackendFiles satisfies Record<string, BackendFileRecord>
+
+export const mockBackend = {
+  listProjects() {
+    return mockProjects
   },
-} satisfies Record<string, BackendFileRecord>
+
+  getProjectBySlug(slug: string | undefined) {
+    return mockProjects.find((project) => project.slug === slug)
+  },
+
+  listProjectUpdates() {
+    return mockProjects
+      .flatMap((project) => project.history.map((history) => ({ ...history, project })))
+      .sort((a, b) => b.at.localeCompare(a.at))
+  },
+} satisfies {
+  listProjects: () => Project[]
+  getProjectBySlug: (slug: string | undefined) => Project | undefined
+  listProjectUpdates: () => Array<Project['history'][number] & { project: Project }>
+}

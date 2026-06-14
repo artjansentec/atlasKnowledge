@@ -19,6 +19,7 @@ import {
   statusLabels,
   type ProjectStatus,
 } from '../lib/projects'
+import { isCurrentUserAdmin } from '../lib/auth'
 import { formatDateBR } from '../lib/date'
 import './css/projects.css'
 
@@ -71,6 +72,7 @@ function ProjectsPage() {
   const doneCount = projects.filter((project) => project.status === 'done').length
   const lessonsCount = projects.reduce((total, project) => total + project.lessons.length, 0)
   const updates = getProjectUpdates().slice(0, 5)
+  const canCreateProjects = isCurrentUserAdmin()
 
   return (
     <div className="projects-page">
@@ -83,9 +85,11 @@ function ProjectsPage() {
           </p>
         </div>
 
-        <Link to="/projects/new" className="projects-hero__action">
-          Novo projeto <ArrowUpRight size={16} aria-hidden="true" />
-        </Link>
+        {canCreateProjects && (
+          <Link to="/projects/new" className="projects-hero__action">
+            Novo projeto <ArrowUpRight size={16} aria-hidden="true" />
+          </Link>
+        )}
       </section>
 
       {createdProject && (
