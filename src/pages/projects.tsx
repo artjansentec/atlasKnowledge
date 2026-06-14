@@ -19,6 +19,7 @@ import {
   statusLabels,
   type ProjectStatus,
 } from '../lib/projects'
+import { formatDateBR } from '../lib/date'
 import './css/projects.css'
 
 type Filter = 'all' | ProjectStatus
@@ -161,7 +162,7 @@ function ProjectsPage() {
                     </span>
                     <span>
                       <Calendar size={14} aria-hidden="true" />
-                      Atualizado em {project.updatedAt}
+                      Atualizado em {formatDateBR(project.updatedAt)}
                     </span>
                   </div>
 
@@ -191,7 +192,7 @@ function ProjectsPage() {
             {updates.map((update) => (
               <li key={`${update.project.id}-${update.id}`}>
                 <Link to={`/projects/${update.project.slug}`}>
-                  <span>{update.at}</span>
+                  <span>{formatDateBR(update.at)}</span>
                   <strong>{update.action}</strong>
                   <small>
                     {update.project.name} · {update.target}

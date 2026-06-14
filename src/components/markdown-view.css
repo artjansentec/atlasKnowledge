@@ -53,3 +53,41 @@
   color: color-mix(in oklch, var(--foreground) 84%, transparent);
   background: rgba(56, 173, 72, 0.07);
 }
+
+.markdown-file-reference {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline: 3px;
+  border: 1px solid rgba(56, 173, 72, 0.22);
+  border-radius: 999px;
+  padding: 3px 9px;
+  color: var(--primary);
+  background: var(--accent-bg);
+  font: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.markdown-file-reference:hover {
+  border-color: rgba(56, 173, 72, 0.42);
+  box-shadow: var(--shadow-soft);
+  transform: translateY(-1px);
+}
+
+.markdown-file-reference:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
+.markdown-file-reference small {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+}

@@ -9,6 +9,7 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import { StatusBadge } from '../components/status-badge'
+import { formatDateBR } from '../lib/date'
 import { flattenSections, getProjectUpdates, projects } from '../lib/projects'
 import './css/dashboard.css'
 
@@ -87,7 +88,7 @@ function DashboardPage() {
                   </span>
 
                   <span className="project-row__meta">
-                    <span>{project.updatedAt}</span>
+                    <span>{formatDateBR(project.updatedAt)}</span>
                     <span>{project.responsible}</span>
                   </span>
                 </a>
@@ -107,7 +108,7 @@ function DashboardPage() {
                 <a href={`/projects/${update.project.slug}`} className="update-card">
                   <span className="update-card__date">
                     <Clock size={13} aria-hidden="true" />
-                    {update.at}
+                    {formatDateBR(update.at)}
                   </span>
                   <strong>{update.action}</strong>
                   <span>

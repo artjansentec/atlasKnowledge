@@ -1,3 +1,5 @@
+import { backendFiles } from './mock-backend'
+
 export type ProjectStatus = 'active' | 'paused' | 'done'
 
 export type Section = {
@@ -9,10 +11,13 @@ export type Section = {
 
 export type ProjectAttachment = {
   id: string
+  backendFileId?: string
   name: string
   type: string
+  mimeType?: string
   size: string
   uploadedAt: string
+  url?: string
 }
 
 export type ProjectLesson = {
@@ -21,6 +26,7 @@ export type ProjectLesson = {
   description: string
   recommendation: string
   createdAt: string
+  tags?: string[]
 }
 
 export type ProjectHistory = {
@@ -38,6 +44,7 @@ export type Project = {
   description: string
   status: ProjectStatus
   responsible: string
+  readers?: string[]
   client?: string
   createdAt: string
   updatedAt: string
@@ -64,11 +71,9 @@ export const projects: Project[] = [
     tech: ['React', 'Vite', 'TypeScript'],
     attachments: [
       {
+        ...backendFiles.geobExamPdf,
         id: 'a-1',
-        name: 'mapa-informacional.pdf',
-        type: 'pdf',
-        size: '1.8 MB',
-        uploadedAt: '2026-06-03',
+        backendFileId: backendFiles.geobExamPdf.id,
       },
       {
         id: 'a-2',
@@ -94,6 +99,7 @@ export const projects: Project[] = [
         recommendation:
           'Mantenha uma seção de primeiros passos antes de expandir documentação técnica detalhada.',
         createdAt: '2026-06-02',
+        tags: ['onboarding', 'documentacao', 'suporte'],
       },
       {
         id: 'l-2',
@@ -101,6 +107,7 @@ export const projects: Project[] = [
         description: 'Registros objetivos de mudanças ajudaram as equipes a confiar na atualização da wiki.',
         recommendation: 'Inclua autor, data e alvo em cada mudança relevante do projeto.',
         createdAt: '2026-06-06',
+        tags: ['historico', 'confianca', 'governanca'],
       },
     ],
     sections: [
@@ -108,7 +115,7 @@ export const projects: Project[] = [
         id: 'overview',
         title: 'Visão geral',
         content:
-          '# Visão geral\n\nO Atlas Knowledge centraliza documentação, decisões e aprendizados em uma experiência única para equipes de produto, engenharia e operação.\n\n## Objetivos\n\n- Reduzir conhecimento espalhado em conversas e arquivos locais.\n- Facilitar busca por contexto histórico.\n- Transformar aprendizados de projetos em material reutilizável.\n\n> A wiki deve ser simples o bastante para ser atualizada durante a rotina, não apenas ao fim do projeto.',
+          '# Visão geral\n\nO Atlas Knowledge centraliza documentação, decisões e aprendizados em uma experiência única para equipes de produto, engenharia e operação.\n\n## Objetivos\n\n- Reduzir conhecimento espalhado em conversas e arquivos locais.\n- Facilitar busca por contexto histórico.\n- Transformar aprendizados de projetos em material reutilizável.\n\nArquivos de apoio: [[arquivo:CT_GEOB_XXIV_2018_10.pdf]], [[arquivo:decisoes-arquitetura.md]] e [[arquivo:fluxo-editor.png]].\n\n> A wiki deve ser simples o bastante para ser atualizada durante a rotina, não apenas ao fim do projeto.',
       },
       {
         id: 'architecture',
@@ -167,6 +174,7 @@ export const projects: Project[] = [
     description: 'Área autenticada para acompanhamento de contratos, tickets e indicadores.',
     status: 'active',
     responsible: 'Rafael Costa',
+    readers: ['Marina Alves'],
     client: 'Clientes enterprise',
     createdAt: '2026-04-18',
     updatedAt: '2026-06-05',

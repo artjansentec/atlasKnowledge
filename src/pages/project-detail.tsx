@@ -1,7 +1,18 @@
-import { useEffect, useState } from 'react'
+import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import {
+  Dialog,
+  DialogContent,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Select,
+  type SelectChangeEvent,
+} from '@mui/material'
+import {
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
   Calendar,
   ChevronDown,
   ChevronRight,
@@ -20,59 +31,449 @@ import {
   Plus,
   Save,
   Tag,
+  Trash2,
   Users,
   X,
 } from 'lucide-react'
+import { confirmDanger, showToast } from '../components/app-alerts'
 import { MarkdownView } from '../components/markdown-view'
 import { StatusBadge } from '../components/status-badge'
-import { flattenSections, getProject, type Project, type Section } from '../lib/projects'
+import { formatDateBR } from '../lib/date'
+import {
+  flattenSections,
+  getProject,
+  type Project,
+  type ProjectAttachment,
+  type ProjectLesson,
+  type ProjectStatus,
+  type Section,
+} from '../lib/projects'
 import './css/project-detail.css'
 
 type Tab = 'doc' | 'files' | 'lessons' | 'history'
+type SectionCreationMode = 'section' | 'subsection'
+type MoveDirection = 'up' | 'down'
+type CarouselDirection = 'previous' | 'next'
+type SectionOption = { id: string; title: string; depth: number }
+
+const currentUserName = 'Marina Alves'
+const responsibleOptions = ['Marina Alves', 'Rafael Costa', 'Bianca Souza', 'Lucas Lima', 'Camila Rocha', 'Pedro Nunes']
+
+function canManageProject(project: Project) {
+  return project.responsible === currentUserName || Boolean(project.readers?.includes(currentUserName))
+}
+
+function createSectionId() {
+  return `section-${Date.now()}`
+}
+
+function createLessonId() {
+  return `lesson-${Date.now()}`
+}
+
+function createAttachmentId() {
+  return `attachment-${Date.now()}`
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function parseLessonTags(value: string) {
+  return Array.from(
+    new Set(
+      value
+        .split(',')
+        .map((tag) => tag.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  )
+}
+
+function parseList(value: string, lowercase = false) {
+  return Array.from(
+    new Set(
+      value
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .map((item) => (lowercase ? item.toLowerCase() : item)),
+    ),
+  )
+}
+
+function addSubsection(sections: Section[], parentId: string, subsection: Section): Section[] {
+  return sections.map((section) => {
+    if (section.id === parentId) {
+      return {
+        ...section,
+        children: [...(section.children ?? []), subsection],
+      }
+    }
+
+    if (!section.children?.length) return section
+
+    return {
+      ...section,
+      children: addSubsection(section.children, parentId, subsection),
+    }
+  })
+}
+
+function moveSection(sections: Section[], sectionId: string, direction: MoveDirection): Section[] {
+  const index = sections.findIndex((section) => section.id === sectionId)
+
+  if (index >= 0) {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1
+    if (targetIndex < 0 || targetIndex >= sections.length) return sections
+
+    const reordered = [...sections]
+    ;[reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]]
+    return reordered
+  }
+
+  return sections.map((section) => {
+    if (!section.children?.length) return section
+
+    return {
+      ...section,
+      children: moveSection(section.children, sectionId, direction),
+    }
+  })
+}
+
+function renameSection(sections: Section[], sectionId: string, title: string): Section[] {
+  return sections.map((section) => {
+    if (section.id === sectionId) return { ...section, title }
+    if (!section.children?.length) return section
+
+    return {
+      ...section,
+      children: renameSection(section.children, sectionId, title),
+    }
+  })
+}
+
+function deleteSection(sections: Section[], sectionId: string): Section[] {
+  return sections
+    .filter((section) => section.id !== sectionId)
+    .map((section) => {
+      if (!section.children?.length) return section
+
+      return {
+        ...section,
+        children: deleteSection(section.children, sectionId),
+      }
+    })
+}
+
+function getSectionIds(section: Section): string[] {
+  return [section.id, ...(section.children?.flatMap(getSectionIds) ?? [])]
+}
+
+function sectionContainsId(section: Section, id: string): boolean {
+  return section.id === id || Boolean(section.children?.some((child) => sectionContainsId(child, id)))
+}
+
+function getAttachmentCitationLocations(
+  attachment: ProjectAttachment,
+  sections: { section: Section; depth: number }[],
+  savedDrafts: Record<string, string>,
+) {
+  const citationKeys = [attachment.name, attachment.id, attachment.backendFileId].filter(Boolean)
+
+  return sections
+    .filter(({ section }) => {
+      const content = savedDrafts[section.id] ?? section.content
+      return citationKeys.some((key) => content.includes(`[[arquivo:${key}]]`))
+    })
+    .map(({ section, depth }) => ({ id: section.id, title: section.title, depth }))
+}
 
 function ProjectDetailPage() {
   const { slug } = useParams()
   const project = getProject(slug)
   const [tab, setTab] = useState<Tab>('doc')
+  const [tabAnimationStep, setTabAnimationStep] = useState(0)
+  const [projectDetails, setProjectDetails] = useState<Project | undefined>(() => project)
+  const [sections, setSections] = useState<Section[]>(() => project?.sections ?? [])
+  const [attachments, setAttachments] = useState<ProjectAttachment[]>(() => project?.attachments ?? [])
+  const [lessons, setLessons] = useState<ProjectLesson[]>(() => project?.lessons ?? [])
   const [activeId, setActiveId] = useState(project?.sections[0]?.id ?? '')
-  const [fullscreen, setFullscreen] = useState(false)
+  const [fullscreen, setFullscreen] = useState(true)
+  const [fullscreenClosing, setFullscreenClosing] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(project?.sections[0]?.content ?? '')
+  const [carouselDirection, setCarouselDirection] = useState<CarouselDirection>('next')
+  const [sectionCreationMode, setSectionCreationMode] = useState<SectionCreationMode | null>(null)
+  const [sectionTitleDraft, setSectionTitleDraft] = useState('')
   const [savedDrafts, setSavedDrafts] = useState<Record<string, string>>({})
+  const [previewAttachment, setPreviewAttachment] = useState<ProjectAttachment | null>(null)
+  const fullscreenCloseTimeoutRef = useRef<number | null>(null)
 
-  const flatSections = project ? flattenSections(project.sections) : []
-  const active = flatSections.find((item) => item.section.id === activeId)?.section ?? project?.sections[0]
+  const flatSections = flattenSections(sections)
+  const sectionOptions = flatSections.map(({ section, depth }) => ({ id: section.id, title: section.title, depth }))
+  const active = flatSections.find((item) => item.section.id === activeId)?.section ?? sections[0]
   const activeContent = active ? (savedDrafts[active.id] ?? active.content) : ''
+  const activeIndex = flatSections.findIndex((item) => item.section.id === active?.id)
+  const previousSection = activeIndex > 0 ? flatSections[activeIndex - 1]?.section : undefined
+  const nextSection = activeIndex >= 0 ? flatSections[activeIndex + 1]?.section : undefined
+  const displayedProject = projectDetails ?? project
+  const canManage = displayedProject ? canManageProject(displayedProject) : false
+  const previewCitationLocations = previewAttachment
+    ? getAttachmentCitationLocations(previewAttachment, flatSections, savedDrafts)
+    : []
 
   useEffect(() => {
-    if (project) document.title = `${project.name} · Atlas Knowledge`
-  }, [project])
+    if (displayedProject) document.title = `${displayedProject.name} · Atlas Knowledge`
+  }, [displayedProject])
 
   useEffect(() => {
-    const firstSection = project?.sections[0]
+    if (!fullscreen) return
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') closeFullscreen()
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [fullscreen])
+
+  useEffect(() => {
+    return () => {
+      if (fullscreenCloseTimeoutRef.current) window.clearTimeout(fullscreenCloseTimeoutRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!project) return
+
+    setProjectDetails(project)
+    setSections(project.sections)
+    setAttachments(project.attachments)
+    setLessons(project.lessons)
+    const firstSection = project.sections[0]
     setActiveId(firstSection?.id ?? '')
     setDraft(firstSection?.content ?? '')
     setEditing(false)
+    setFullscreen(true)
+    setFullscreenClosing(false)
+    setCarouselDirection('next')
+    setSectionCreationMode(null)
+    setSectionTitleDraft('')
+    setPreviewAttachment(null)
   }, [project])
 
   if (!project) return <Navigate to="/projects" replace />
 
+  const currentProject = projectDetails ?? project
+
+  function startSectionCreation(mode: SectionCreationMode) {
+    if (!canManage) return
+
+    setSectionCreationMode(mode)
+    setSectionTitleDraft(mode === 'section' ? 'Nova seção' : 'Nova subseção')
+  }
+
+  function cancelSectionCreation() {
+    setSectionCreationMode(null)
+    setSectionTitleDraft('')
+  }
+
+  function addSection() {
+    if (!canManage) return
+    if (!sectionCreationMode) return
+
+    const title = sectionTitleDraft.trim() || (sectionCreationMode === 'section' ? 'Nova seção' : 'Nova subseção')
+    const newSection: Section = {
+      id: createSectionId(),
+      title,
+      content: `# ${title}\n\n`,
+    }
+
+    setSections((current) =>
+      sectionCreationMode === 'subsection' && activeId ? addSubsection(current, activeId, newSection) : [...current, newSection],
+    )
+    setActiveId(newSection.id)
+    setDraft(newSection.content)
+    setEditing(true)
+    cancelSectionCreation()
+    showToast(sectionCreationMode === 'section' ? 'Seção criada' : 'Subseção criada')
+  }
+
+  function reorderSection(sectionId: string, direction: MoveDirection) {
+    if (!canManage) return
+
+    setSections((current) => moveSection(current, sectionId, direction))
+  }
+
+  function updateSectionTitle(sectionId: string, title: string) {
+    if (!canManage) return
+
+    setSections((current) => renameSection(current, sectionId, title))
+  }
+
+  async function removeActiveSection() {
+    if (!canManage) return
+    if (!active) return
+    const confirmed = await confirmDanger({
+      title: `Apagar "${active.title}"?`,
+      text: 'Essa ação também remove todas as subseções e não poderá ser desfeita.',
+      confirmButtonText: 'Apagar',
+    })
+
+    if (!confirmed) return
+
+    const deletedIds = getSectionIds(active)
+    const nextSections = deleteSection(sections, active.id)
+    const nextActive = flattenSections(nextSections)[0]?.section
+
+    setSections(nextSections)
+    setSavedDrafts((current) =>
+      Object.fromEntries(Object.entries(current).filter(([sectionId]) => !deletedIds.includes(sectionId))),
+    )
+    setActiveId(nextActive?.id ?? '')
+    setDraft(nextActive ? (savedDrafts[nextActive.id] ?? nextActive.content) : '')
+    setEditing(false)
+    showToast('Seção apagada')
+  }
+
+  async function removeAttachment(attachment: ProjectAttachment) {
+    if (!canManage) return
+
+    const confirmed = await confirmDanger({
+      title: `Apagar "${attachment.name}"?`,
+      text: 'O arquivo será removido dos registros do projeto.',
+      confirmButtonText: 'Apagar arquivo',
+    })
+
+    if (!confirmed) return
+
+    setAttachments((current) => current.filter((item) => item.id !== attachment.id))
+    showToast('Arquivo apagado')
+  }
+
+  function addAttachment(file: File) {
+    if (!canManage) return
+
+    const extension = file.name.split('.').pop()?.toLowerCase() || 'file'
+    const attachment: ProjectAttachment = {
+      id: createAttachmentId(),
+      name: file.name,
+      type: extension,
+      size: formatFileSize(file.size),
+      uploadedAt: new Date().toISOString().slice(0, 10),
+    }
+
+    setAttachments((current) => [attachment, ...current])
+    showToast('Arquivo enviado')
+  }
+
+  async function removeLesson(lesson: ProjectLesson) {
+    if (!canManage) return
+
+    const confirmed = await confirmDanger({
+      title: `Apagar "${lesson.title}"?`,
+      text: 'A lição será removida dos registros do projeto.',
+      confirmButtonText: 'Apagar lição',
+    })
+
+    if (!confirmed) return
+
+    setLessons((current) => current.filter((item) => item.id !== lesson.id))
+    showToast('Lição apagada')
+  }
+
+  function addLesson(lesson: Omit<ProjectLesson, 'id' | 'createdAt'>) {
+    if (!canManage) return
+
+    setLessons((current) => [
+      {
+        id: createLessonId(),
+        createdAt: new Date().toISOString().slice(0, 10),
+        ...lesson,
+      },
+      ...current,
+    ])
+    showToast('Lição criada')
+  }
+
+  function updateLesson(lessonId: string, lesson: Omit<ProjectLesson, 'id' | 'createdAt'>) {
+    if (!canManage) return
+
+    setLessons((current) => current.map((item) => (item.id === lessonId ? { ...item, ...lesson } : item)))
+    showToast('Lição atualizada')
+  }
+
+  function updateProjectInfo(nextProject: Project) {
+    if (!canManage) return
+
+    setProjectDetails({
+      ...nextProject,
+      updatedAt: new Date().toISOString().slice(0, 10),
+    })
+    showToast('Informações do projeto atualizadas')
+  }
+
   function selectSection(id: string) {
     const section = flatSections.find((item) => item.section.id === id)?.section
+    const nextIndex = flatSections.findIndex((item) => item.section.id === id)
+
+    if (nextIndex !== -1 && activeIndex !== -1) {
+      setCarouselDirection(nextIndex > activeIndex ? 'next' : 'previous')
+    }
+
     setActiveId(id)
     setDraft(section ? (savedDrafts[section.id] ?? section.content) : '')
     setEditing(false)
   }
 
+  function navigateSection(direction: CarouselDirection) {
+    const target = direction === 'previous' ? previousSection : nextSection
+    if (!target) return
+
+    setCarouselDirection(direction)
+    setActiveId(target.id)
+    setDraft(savedDrafts[target.id] ?? target.content)
+    setEditing(false)
+  }
+
   function saveDraft() {
+    if (!canManage) return
     if (!active) return
     setSavedDrafts((current) => ({ ...current, [active.id]: draft }))
     setEditing(false)
+    showToast('Alterações salvas')
   }
 
   function cancelEditing() {
     setDraft(activeContent)
     setEditing(false)
+  }
+
+  function changeTab(nextTab: Tab) {
+    if (nextTab === tab) return
+
+    setTab(nextTab)
+    setTabAnimationStep((current) => current + 1)
+  }
+
+  function openFullscreen() {
+    if (fullscreenCloseTimeoutRef.current) window.clearTimeout(fullscreenCloseTimeoutRef.current)
+    setFullscreenClosing(false)
+    setFullscreen(true)
+  }
+
+  function closeFullscreen() {
+    if (!fullscreen || fullscreenClosing) return
+
+    setFullscreenClosing(true)
+    fullscreenCloseTimeoutRef.current = window.setTimeout(() => {
+      setFullscreen(false)
+      setFullscreenClosing(false)
+    }, 220)
   }
 
   return (
@@ -84,24 +485,24 @@ function ProjectDetailPage() {
             Projetos
           </Link>
           <ChevronRight size={14} aria-hidden="true" />
-          <span>{project.name}</span>
+          <span>{currentProject.name}</span>
         </div>
 
         <header className="project-detail__hero">
           <div>
             <div className="project-detail__title">
-              <h1>{project.name}</h1>
-              <StatusBadge status={project.status} />
+              <h1>{currentProject.name}</h1>
+              <StatusBadge status={currentProject.status} />
             </div>
-            <p>{project.description}</p>
+            <p>{currentProject.description}</p>
           </div>
         </header>
 
         <nav className="project-detail__tabs" aria-label="Conteúdo do projeto">
           {[
             { id: 'doc' as const, label: 'Documentação', icon: FileText },
-            { id: 'files' as const, label: `Arquivos (${project.attachments.length})`, icon: Paperclip },
-            { id: 'lessons' as const, label: `Lições (${project.lessons.length})`, icon: Lightbulb },
+            { id: 'files' as const, label: `Arquivos (${attachments.length})`, icon: Paperclip },
+            { id: 'lessons' as const, label: `Lições (${lessons.length})`, icon: Lightbulb },
             { id: 'history' as const, label: 'Histórico', icon: History },
           ].map((item) => {
             const Icon = item.icon
@@ -110,7 +511,7 @@ function ProjectDetailPage() {
                 key={item.id}
                 type="button"
                 className={tab === item.id ? 'project-detail__tab project-detail__tab--active' : 'project-detail__tab'}
-                onClick={() => setTab(item.id)}
+                onClick={() => changeTab(item.id)}
               >
                 <Icon size={16} aria-hidden="true" />
                 {item.label}
@@ -119,28 +520,80 @@ function ProjectDetailPage() {
           })}
         </nav>
 
-        {tab === 'doc' && (
-          <DocView
-            project={project}
-            sections={project.sections}
-            activeId={activeId}
-            active={active}
-            activeContent={activeContent}
-            draft={draft}
-            editing={editing}
-            fullscreen={fullscreen}
-            onCancel={cancelEditing}
-            onDraftChange={setDraft}
-            onSave={saveDraft}
-            onSelect={selectSection}
-            setEditing={setEditing}
-            setFullscreen={setFullscreen}
-          />
-        )}
-        {tab === 'files' && <FilesView project={project} />}
-        {tab === 'lessons' && <LessonsView project={project} />}
-        {tab === 'history' && <HistoryView project={project} />}
+        <div
+          className="project-tab-transition"
+          data-active-tab={tab}
+          style={{
+            animationName:
+              tab === 'doc' ? 'project-tab-doc-enter' : tabAnimationStep % 2 === 0 ? 'project-tab-enter-a' : 'project-tab-enter-b',
+          }}
+        >
+          {tab === 'doc' && (
+            <DocView
+              project={currentProject}
+              sections={sections}
+              activeId={activeId}
+              active={active}
+              activeIndex={activeIndex}
+              activeContent={activeContent}
+              attachments={attachments}
+              canManage={canManage}
+              carouselDirection={carouselDirection}
+              draft={draft}
+              editing={editing}
+              fullscreen={fullscreen}
+              fullscreenClosing={fullscreenClosing}
+              lessons={lessons}
+              sectionCreationMode={sectionCreationMode}
+              sectionOptions={sectionOptions}
+              sectionTitleDraft={sectionTitleDraft}
+              onAddSection={addSection}
+              onCancel={cancelEditing}
+              onCancelSectionCreation={cancelSectionCreation}
+              onCloseFullscreen={closeFullscreen}
+              onDeleteSection={removeActiveSection}
+              onDraftChange={setDraft}
+              onOpenAttachment={setPreviewAttachment}
+              onOpenFullscreen={openFullscreen}
+              onMoveSection={reorderSection}
+              onNavigateSection={navigateSection}
+              onRenameSection={updateSectionTitle}
+              onSave={saveDraft}
+              onSelect={selectSection}
+              previousSectionTitle={previousSection?.title}
+              onSectionTitleDraftChange={setSectionTitleDraft}
+              onStartSectionCreation={startSectionCreation}
+              onUpdateProject={updateProjectInfo}
+              nextSectionTitle={nextSection?.title}
+              setEditing={setEditing}
+            />
+          )}
+          {tab === 'files' && (
+            <FilesView
+              attachments={attachments}
+              canManage={canManage}
+              onAddAttachment={addAttachment}
+              onDeleteAttachment={removeAttachment}
+              onOpenAttachment={setPreviewAttachment}
+            />
+          )}
+          {tab === 'lessons' && (
+            <LessonsView
+              lessons={lessons}
+              canManage={canManage}
+              onAddLesson={addLesson}
+              onDeleteLesson={removeLesson}
+              onUpdateLesson={updateLesson}
+            />
+          )}
+          {tab === 'history' && <HistoryView project={currentProject} />}
+        </div>
       </div>
+      <AttachmentPreviewDialog
+        attachment={previewAttachment}
+        citationLocations={previewCitationLocations}
+        onClose={() => setPreviewAttachment(null)}
+      />
     </div>
   )
 }
@@ -150,47 +603,128 @@ function DocView({
   sections,
   activeId,
   active,
+  activeIndex,
   activeContent,
+  attachments,
+  canManage,
+  carouselDirection,
   draft,
   editing,
   fullscreen,
+  fullscreenClosing,
+  lessons,
+  sectionCreationMode,
+  sectionOptions,
+  sectionTitleDraft,
+  onAddSection,
   onCancel,
+  onCancelSectionCreation,
+  onCloseFullscreen,
+  onDeleteSection,
   onDraftChange,
+  onOpenAttachment,
+  onOpenFullscreen,
+  onMoveSection,
+  onNavigateSection,
+  onRenameSection,
   onSave,
   onSelect,
+  previousSectionTitle,
+  onSectionTitleDraftChange,
+  onStartSectionCreation,
+  onUpdateProject,
+  nextSectionTitle,
   setEditing,
-  setFullscreen,
 }: {
   project: Project
   sections: Section[]
   activeId: string
   active: Section | undefined
+  activeIndex: number
   activeContent: string
+  attachments: ProjectAttachment[]
+  canManage: boolean
+  carouselDirection: CarouselDirection
   draft: string
   editing: boolean
   fullscreen: boolean
+  fullscreenClosing: boolean
+  lessons: ProjectLesson[]
+  sectionCreationMode: SectionCreationMode | null
+  sectionOptions: SectionOption[]
+  sectionTitleDraft: string
+  onAddSection: () => void
   onCancel: () => void
+  onCancelSectionCreation: () => void
+  onCloseFullscreen: () => void
+  onDeleteSection: () => void
   onDraftChange: (value: string) => void
+  onOpenAttachment: (attachment: ProjectAttachment) => void
+  onOpenFullscreen: () => void
+  onMoveSection: (sectionId: string, direction: MoveDirection) => void
+  onNavigateSection: (direction: CarouselDirection) => void
+  onRenameSection: (sectionId: string, title: string) => void
   onSave: () => void
   onSelect: (id: string) => void
+  previousSectionTitle: string | undefined
+  onSectionTitleDraftChange: (value: string) => void
+  onStartSectionCreation: (mode: SectionCreationMode) => void
+  onUpdateProject: (project: Project) => void
+  nextSectionTitle: string | undefined
   setEditing: (value: boolean) => void
-  setFullscreen: (value: boolean) => void
 }) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+
+  function insertAttachmentCitation(attachment: ProjectAttachment) {
+    const citation = `[[arquivo:${attachment.name}]]`
+    const textarea = textareaRef.current
+    const start = textarea?.selectionStart ?? draft.length
+    const end = textarea?.selectionEnd ?? start
+    const nextDraft = `${draft.slice(0, start)}${citation}${draft.slice(end)}`
+    const nextCaretPosition = start + citation.length
+
+    onDraftChange(nextDraft)
+    window.requestAnimationFrame(() => {
+      textarea?.focus()
+      textarea?.setSelectionRange(nextCaretPosition, nextCaretPosition)
+    })
+    showToast('Citação de arquivo inserida')
+  }
+
   if (fullscreen) {
     return (
-      <div className="project-reader">
+      <div className={fullscreenClosing ? 'project-reader project-reader--closing' : 'project-reader'}>
         <div className="project-reader__bar">
-          <div className="project-reader__title">
-            {project.name} · {active?.title}
+          <div className="project-reader__bar-main">
+            <div className="project-reader__title">
+              {project.name} · {active?.title}
+            </div>
+            <SectionSwitcher activeId={activeId} onSelect={onSelect} sections={sectionOptions} />
           </div>
-          <button type="button" className="project-detail__ghost-btn" onClick={() => setFullscreen(false)}>
+          <button type="button" className="project-detail__ghost-btn project-reader__exit-button" onClick={onCloseFullscreen}>
             <Minimize2 size={15} aria-hidden="true" />
-            Sair da leitura
+            Sair da tela cheia
+            <kbd>Esc</kbd>
           </button>
         </div>
-        <article className="project-reader__content">
-          <MarkdownView content={activeContent} />
-        </article>
+        <div className="project-reader__carousel project-document-carousel">
+          <div className="project-document-carousel__viewport">
+            <article
+              key={active?.id}
+              className={`project-reader__content project-document-card__content--${carouselDirection}`}
+            >
+              <MarkdownView attachments={attachments} content={activeContent} onOpenAttachment={onOpenAttachment} />
+              <SectionPager
+                activeIndex={activeIndex}
+                nextSectionTitle={nextSectionTitle}
+                onNavigateSection={onNavigateSection}
+                previousSectionTitle={previousSectionTitle}
+                totalSections={sectionOptions.length}
+              />
+            </article>
+          </div>
+        </div>
+        <ProjectReaderFiles attachments={attachments} onOpenAttachment={onOpenAttachment} />
       </div>
     )
   }
@@ -200,11 +734,51 @@ function DocView({
       <aside className="project-sections-card">
         <div className="project-detail__panel-title">
           <span>Seções</span>
-          <button type="button" aria-label="Adicionar seção">
-            <Plus size={15} aria-hidden="true" />
-          </button>
+          {canManage && (
+            <div className="project-section-actions">
+              <button type="button" onClick={() => onStartSectionCreation('section')}>
+                <Plus size={14} aria-hidden="true" />
+                Seção
+              </button>
+              <button type="button" disabled={!activeId} onClick={() => onStartSectionCreation('subsection')}>
+                <Plus size={14} aria-hidden="true" />
+                Subseção
+              </button>
+            </div>
+          )}
         </div>
-        <SectionTree sections={sections} activeId={activeId} onSelect={onSelect} />
+        {canManage && sectionCreationMode && (
+          <form className="project-section-create" onSubmit={(event) => {
+            event.preventDefault()
+            onAddSection()
+          }}>
+            <label htmlFor="section-title">
+              Título da {sectionCreationMode === 'section' ? 'seção' : 'subseção'}
+            </label>
+            <input
+              id="section-title"
+              value={sectionTitleDraft}
+              autoFocus
+              onChange={(event) => onSectionTitleDraftChange(event.target.value)}
+              placeholder={sectionCreationMode === 'section' ? 'Ex.: Planejamento' : 'Ex.: Decisões técnicas'}
+            />
+            <div>
+              <button type="button" className="project-detail__ghost-btn" onClick={onCancelSectionCreation}>
+                Cancelar
+              </button>
+              <button type="submit" className="project-detail__primary-btn">
+                Criar
+              </button>
+            </div>
+          </form>
+        )}
+        <SectionTree
+          sections={sections}
+          activeId={activeId}
+          canManage={canManage}
+          onMove={onMoveSection}
+          onSelect={onSelect}
+        />
       </aside>
 
       <article className="project-document-card">
@@ -223,32 +797,70 @@ function DocView({
                 <Eye size={14} aria-hidden="true" />
                 Ler
               </button>
-              <button
-                type="button"
-                className={editing ? 'project-view-toggle__item project-view-toggle__item--active' : 'project-view-toggle__item'}
-                onClick={() => setEditing(true)}
-              >
-                <PencilLine size={14} aria-hidden="true" />
-                Editar
-              </button>
+              {canManage && (
+                <button
+                  type="button"
+                  className={editing ? 'project-view-toggle__item project-view-toggle__item--active' : 'project-view-toggle__item'}
+                  onClick={() => setEditing(true)}
+                >
+                  <PencilLine size={14} aria-hidden="true" />
+                  Editar
+                </button>
+              )}
             </div>
-            <button type="button" className="project-detail__ghost-btn" onClick={() => setFullscreen(true)}>
+            <button type="button" className="project-detail__ghost-btn" onClick={onOpenFullscreen}>
               <Maximize2 size={14} aria-hidden="true" />
               Tela cheia
             </button>
           </div>
         </div>
 
-        {editing ? (
+        {editing && canManage ? (
           <div className="project-editor">
             <div className="project-editor__pane">
+              <div className="project-editor__meta">
+                <label>
+                  Título da seção
+                  <input
+                    value={active?.title ?? ''}
+                    disabled={!active}
+                    onChange={(event) => {
+                      if (active) onRenameSection(active.id, event.target.value)
+                    }}
+                    placeholder="Digite o título"
+                  />
+                </label>
+                <button type="button" className="project-detail__danger-btn" disabled={!active} onClick={onDeleteSection}>
+                  <Trash2 size={14} aria-hidden="true" />
+                  Apagar
+                </button>
+              </div>
               <div className="project-editor__label">Markdown</div>
               <textarea
+                ref={textareaRef}
                 value={draft}
                 onChange={(event) => onDraftChange(event.target.value)}
                 spellCheck={false}
                 aria-label="Editar documentação em Markdown"
               />
+              {attachments.length > 0 && (
+                <div className="project-editor__attachments">
+                  <div className="project-editor__label">Citar arquivos</div>
+                  <div>
+                    {attachments.map((attachment) => (
+                      <button
+                        key={attachment.id}
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => insertAttachmentCitation(attachment)}
+                      >
+                        <Paperclip size={13} aria-hidden="true" />
+                        {attachment.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="project-editor__footer">
                 <button type="button" className="project-detail__ghost-btn" onClick={onCancel}>
                   <X size={14} aria-hidden="true" />
@@ -263,46 +875,214 @@ function DocView({
             <div className="project-editor__pane">
               <div className="project-editor__label">Preview</div>
               <div className="project-editor__preview">
-                <MarkdownView content={draft} />
+                <MarkdownView attachments={attachments} content={draft} onOpenAttachment={onOpenAttachment} />
               </div>
             </div>
           </div>
         ) : (
-          <div className="project-document-card__content">
-            <MarkdownView content={activeContent} />
+          <div className="project-document-carousel">
+            <div className="project-document-carousel__viewport">
+              <div
+                key={active?.id}
+                className={`project-document-card__content project-document-card__content--${carouselDirection}`}
+              >
+                <MarkdownView attachments={attachments} content={activeContent} onOpenAttachment={onOpenAttachment} />
+                <SectionPager
+                  activeIndex={activeIndex}
+                  nextSectionTitle={nextSectionTitle}
+                  onNavigateSection={onNavigateSection}
+                  previousSectionTitle={previousSectionTitle}
+                  totalSections={sectionOptions.length}
+                />
+              </div>
+            </div>
           </div>
         )}
       </article>
 
       <aside className="project-detail__aside">
-        <ProjectInfo project={project} />
-        <RelatedFiles project={project} />
-        <RelatedLessons project={project} />
+        <ProjectInfo canManage={canManage} onSave={onUpdateProject} project={project} />
+        <RelatedFiles attachments={attachments} onOpenAttachment={onOpenAttachment} />
+        <RelatedLessons lessons={lessons} />
       </aside>
     </section>
+  )
+}
+
+function SectionSwitcher({
+  activeId,
+  onSelect,
+  sections,
+}: {
+  activeId: string
+  onSelect: (id: string) => void
+  sections: SectionOption[]
+}) {
+  if (sections.length <= 1) return null
+
+  function handleChange(event: SelectChangeEvent) {
+    onSelect(event.target.value)
+  }
+
+  return (
+    <FormControl
+      className="project-section-switcher"
+      size="small"
+      sx={{
+        flex: '0 0 auto',
+        maxWidth: 'min(34vw, 320px)',
+        minWidth: 220,
+        '& .MuiInputLabel-root': {
+          color: 'var(--muted-foreground)',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11,
+          fontWeight: 700,
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+        },
+        '& .MuiInputLabel-root.Mui-focused': {
+          color: 'var(--primary)',
+        },
+        '& .MuiOutlinedInput-root': {
+          borderRadius: '10px',
+          color: 'var(--text-h)',
+          backgroundColor: 'var(--surface)',
+          font: '700 13px/1.2 var(--font-sans)',
+        },
+        '& .MuiOutlinedInput-root fieldset': {
+          borderColor: 'var(--border)',
+        },
+        '& .MuiOutlinedInput-root:hover fieldset': {
+          borderColor: 'rgba(56, 173, 72, 0.32)',
+        },
+        '& .MuiOutlinedInput-root.Mui-focused fieldset': {
+          borderColor: 'var(--primary)',
+          borderWidth: 1,
+        },
+        '& .MuiSelect-icon': {
+          color: 'var(--muted-foreground)',
+        },
+      }}
+    >
+      <InputLabel id="project-section-switcher-label">Seção</InputLabel>
+      <Select
+        label="Seção"
+        labelId="project-section-switcher-label"
+        value={activeId}
+        onChange={handleChange}
+        MenuProps={{
+          slotProps: {
+            paper: {
+              sx: {
+                border: '1px solid var(--border)',
+                borderRadius: '12px',
+                backgroundColor: 'var(--surface)',
+                boxShadow: 'var(--shadow)',
+                mt: 0.5,
+              },
+            },
+          },
+        }}
+      >
+        {sections.map((section) => (
+          <MenuItem
+            key={section.id}
+            value={section.id}
+            sx={{
+              color: 'var(--foreground)',
+              font: '600 13px/1.35 var(--font-sans)',
+              pl: `${section.depth * 18 + 16}px`,
+              '&.Mui-selected': {
+                color: 'var(--primary)',
+                backgroundColor: 'var(--accent-bg)',
+              },
+              '&.Mui-selected:hover, &:hover': {
+                backgroundColor: 'rgba(56, 173, 72, 0.08)',
+              },
+            }}
+          >
+            {section.title}
+          </MenuItem>
+        ))}
+      </Select>
+    </FormControl>
+  )
+}
+
+function SectionPager({
+  activeIndex,
+  nextSectionTitle,
+  onNavigateSection,
+  previousSectionTitle,
+  totalSections,
+}: {
+  activeIndex: number
+  nextSectionTitle: string | undefined
+  onNavigateSection: (direction: CarouselDirection) => void
+  previousSectionTitle: string | undefined
+  totalSections: number
+}) {
+  if (totalSections <= 1) return null
+
+  const currentSection = activeIndex >= 0 ? activeIndex + 1 : 1
+
+  return (
+    <nav className="project-section-pager" aria-label="Navegação entre seções">
+      <button
+        type="button"
+        className="project-section-pager__button"
+        disabled={!previousSectionTitle}
+        onClick={() => onNavigateSection('previous')}
+      >
+        <span>Seção anterior</span>
+        <strong>{previousSectionTitle ?? 'Início do documento'}</strong>
+      </button>
+
+      <span className="project-section-pager__counter">
+        {currentSection} de {totalSections}
+      </span>
+
+      <button
+        type="button"
+        className="project-section-pager__button project-section-pager__button--next"
+        disabled={!nextSectionTitle}
+        onClick={() => onNavigateSection('next')}
+      >
+        <span>Próxima seção</span>
+        <strong>{nextSectionTitle ?? 'Fim do documento'}</strong>
+      </button>
+    </nav>
   )
 }
 
 function SectionTree({
   sections,
   activeId,
+  canManage,
+  onMove,
   onSelect,
   depth = 0,
 }: {
   sections: Section[]
   activeId: string
+  canManage: boolean
+  onMove: (sectionId: string, direction: MoveDirection) => void
   onSelect: (id: string) => void
   depth?: number
 }) {
   return (
     <ul className="project-section-tree">
-      {sections.map((section) => (
+      {sections.map((section, index) => (
         <SectionItem
           key={section.id}
           activeId={activeId}
+          canManage={canManage}
           depth={depth}
+          index={index}
+          onMove={onMove}
           onSelect={onSelect}
           section={section}
+          siblingCount={sections.length}
         />
       ))}
     </ul>
@@ -312,17 +1092,30 @@ function SectionTree({
 function SectionItem({
   section,
   activeId,
+  canManage,
+  index,
+  onMove,
   onSelect,
   depth,
+  siblingCount,
 }: {
   section: Section
   activeId: string
+  canManage: boolean
+  index: number
+  onMove: (sectionId: string, direction: MoveDirection) => void
   onSelect: (id: string) => void
   depth: number
+  siblingCount: number
 }) {
   const [open, setOpen] = useState(true)
   const hasChildren = Boolean(section.children?.length)
   const active = activeId === section.id
+  const containsActive = sectionContainsId(section, activeId)
+
+  useEffect(() => {
+    if (containsActive) setOpen(true)
+  }, [containsActive])
 
   return (
     <li>
@@ -333,6 +1126,7 @@ function SectionItem({
         {hasChildren ? (
           <button
             type="button"
+            className="project-section-tree__toggle"
             aria-label={open ? 'Recolher seção' : 'Expandir seção'}
             onClick={() => setOpen((value) => !value)}
           >
@@ -341,26 +1135,339 @@ function SectionItem({
         ) : (
           <span className="project-section-tree__dot" aria-hidden="true" />
         )}
-        <button type="button" onClick={() => onSelect(section.id)}>
+        <button type="button" className="project-section-tree__label" onClick={() => onSelect(section.id)}>
           {section.title}
         </button>
+        {canManage && (
+          <div className="project-section-tree__move-actions" aria-label={`Reordenar ${section.title}`}>
+            <button
+              type="button"
+              aria-label={`Mover ${section.title} para cima`}
+              disabled={index === 0}
+              onClick={() => onMove(section.id, 'up')}
+            >
+              <ArrowUp size={13} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              aria-label={`Mover ${section.title} para baixo`}
+              disabled={index === siblingCount - 1}
+              onClick={() => onMove(section.id, 'down')}
+            >
+              <ArrowDown size={13} aria-hidden="true" />
+            </button>
+          </div>
+        )}
       </div>
       {hasChildren && open && (
-        <SectionTree sections={section.children ?? []} activeId={activeId} onSelect={onSelect} depth={depth + 1} />
+        <SectionTree
+          sections={section.children ?? []}
+          activeId={activeId}
+          canManage={canManage}
+          onMove={onMove}
+          onSelect={onSelect}
+          depth={depth + 1}
+        />
       )}
     </li>
   )
 }
 
-function ProjectInfo({ project }: { project: Project }) {
+function ProjectReaderFiles({
+  attachments,
+  onOpenAttachment,
+}: {
+  attachments: ProjectAttachment[]
+  onOpenAttachment: (attachment: ProjectAttachment) => void
+}) {
+  if (!attachments.length) return null
+
+  return (
+    <aside className="project-reader-files" aria-label="Arquivos anexados ao projeto">
+      <div className="project-reader-files__title">
+        <Paperclip size={14} aria-hidden="true" />
+        Arquivos
+      </div>
+      <ul>
+        {attachments.map((attachment) => (
+          <li key={attachment.id}>
+            <button type="button" onClick={() => onOpenAttachment(attachment)}>
+              <FileIcon type={attachment.type} />
+              <div>
+                <strong>{attachment.name}</strong>
+                <span>
+                  {attachment.type.toUpperCase()} · {attachment.size}
+                </span>
+                <small>Enviado em {formatDateBR(attachment.uploadedAt)}</small>
+              </div>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </aside>
+  )
+}
+
+function ProjectInfo({
+  project,
+  canManage,
+  onSave,
+}: {
+  project: Project
+  canManage: boolean
+  onSave: (project: Project) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [tagDraft, setTagDraft] = useState('')
+  const [techDraft, setTechDraft] = useState('')
+  const [draft, setDraft] = useState({
+    name: project.name,
+    description: project.description,
+    status: project.status,
+    responsible: project.responsible,
+    client: project.client ?? '',
+    tags: project.tags.join(', '),
+    tech: project.tech?.join(', ') ?? '',
+  })
+
+  useEffect(() => {
+    setDraft({
+      name: project.name,
+      description: project.description,
+      status: project.status,
+      responsible: project.responsible,
+      client: project.client ?? '',
+      tags: project.tags.join(', '),
+      tech: project.tech?.join(', ') ?? '',
+    })
+    setTagDraft('')
+    setTechDraft('')
+  }, [project])
+
+  function updateDraft<Field extends keyof typeof draft>(field: Field, value: (typeof draft)[Field]) {
+    setDraft((current) => ({ ...current, [field]: value }))
+  }
+
+  function cancelEditing() {
+    setEditing(false)
+    setDraft({
+      name: project.name,
+      description: project.description,
+      status: project.status,
+      responsible: project.responsible,
+      client: project.client ?? '',
+      tags: project.tags.join(', '),
+      tech: project.tech?.join(', ') ?? '',
+    })
+    setTagDraft('')
+    setTechDraft('')
+  }
+
+  function updateTags(tags: string[]) {
+    updateDraft('tags', tags.join(', '))
+  }
+
+  function updateTech(tech: string[]) {
+    updateDraft('tech', tech.join(', '))
+  }
+
+  function addTag() {
+    const tag = tagDraft.trim().toLowerCase()
+    if (!tag) return
+
+    const tags = parseList(draft.tags, true)
+    if (!tags.includes(tag)) updateTags([...tags, tag])
+    setTagDraft('')
+  }
+
+  function removeTag(tag: string) {
+    updateTags(parseList(draft.tags, true).filter((item) => item !== tag))
+  }
+
+  function addTech() {
+    const tech = techDraft.trim()
+    if (!tech) return
+
+    const currentTech = parseList(draft.tech)
+    const alreadyExists = currentTech.some((item) => item.toLowerCase() === tech.toLowerCase())
+    if (!alreadyExists) updateTech([...currentTech, tech])
+    setTechDraft('')
+  }
+
+  function removeTech(tech: string) {
+    updateTech(parseList(draft.tech).filter((item) => item !== tech))
+  }
+
+  function handleTagKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.key !== 'Enter' && event.key !== ',') return
+
+    event.preventDefault()
+    addTag()
+  }
+
+  function handleTechKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.key !== 'Enter' && event.key !== ',') return
+
+    event.preventDefault()
+    addTech()
+  }
+
+  function submitProjectInfo(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const name = draft.name.trim()
+    const description = draft.description.trim()
+    const responsible = draft.responsible.trim()
+
+    if (!name || !description || !responsible) {
+      showToast('Preencha nome, descrição e responsável', 'warning')
+      return
+    }
+
+    onSave({
+      ...project,
+      name,
+      description,
+      status: draft.status,
+      responsible,
+      client: draft.client.trim() || undefined,
+      tags: parseList(draft.tags, true),
+      tech: parseList(draft.tech),
+    })
+    setEditing(false)
+  }
+
+  if (editing) {
+    const responsibleSelectOptions = Array.from(new Set([draft.responsible, ...responsibleOptions].filter(Boolean)))
+    const tags = parseList(draft.tags, true)
+    const tech = parseList(draft.tech)
+
+    return (
+      <div className="project-detail__card">
+        <div className="project-detail__panel-title">Editar informações</div>
+        <form className="project-info-form" onSubmit={submitProjectInfo}>
+          <label>
+            Nome
+            <input value={draft.name} onChange={(event) => updateDraft('name', event.target.value)} />
+          </label>
+          <label>
+            Descrição
+            <textarea value={draft.description} onChange={(event) => updateDraft('description', event.target.value)} />
+          </label>
+          <label className="project-info-form__select-field project-info-form__select-field--status">
+            Status
+            <FormControl className="project-info-form__mui-field" size="small" fullWidth>
+              <Select
+                displayEmpty
+                value={draft.status}
+                onChange={(event: SelectChangeEvent<ProjectStatus>) => updateDraft('status', event.target.value as ProjectStatus)}
+              >
+                <MenuItem value="active">Ativo</MenuItem>
+                <MenuItem value="paused">Pausado</MenuItem>
+                <MenuItem value="done">Concluído</MenuItem>
+              </Select>
+            </FormControl>
+          </label>
+          <label className="project-info-form__select-field">
+            Responsável
+            <FormControl className="project-info-form__mui-field" size="small" fullWidth>
+              <Select
+                displayEmpty
+                value={draft.responsible}
+                onChange={(event: SelectChangeEvent) => updateDraft('responsible', event.target.value)}
+              >
+                {responsibleSelectOptions.map((responsible) => (
+                  <MenuItem key={responsible} value={responsible}>
+                    {responsible}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </label>
+          <label>
+            Cliente
+            <input value={draft.client} onChange={(event) => updateDraft('client', event.target.value)} />
+          </label>
+          <label className="project-info-form__tag-field">
+            Tags
+            <div className="project-tag-editor">
+              {tags.length > 0 && (
+                <div className="project-tag-editor__chips" aria-label="Tags adicionadas">
+                  {tags.map((tag) => (
+                    <button key={tag} type="button" onClick={() => removeTag(tag)}>
+                      #{tag}
+                      <X size={12} aria-hidden="true" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="project-tag-editor__input-row">
+                <input
+                  value={tagDraft}
+                  onChange={(event) => setTagDraft(event.target.value)}
+                  onKeyDown={handleTagKeyDown}
+                  placeholder="Digite uma tag e pressione Enter"
+                />
+                <button type="button" className="project-detail__ghost-btn" onClick={addTag}>
+                  Adicionar
+                </button>
+              </div>
+            </div>
+          </label>
+          <label className="project-info-form__tag-field">
+            Tecnologias
+            <div className="project-tag-editor">
+              {tech.length > 0 && (
+                <div className="project-tag-editor__chips project-tag-editor__chips--tech" aria-label="Tecnologias adicionadas">
+                  {tech.map((item) => (
+                    <button key={item} type="button" onClick={() => removeTech(item)}>
+                      {item}
+                      <X size={12} aria-hidden="true" />
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="project-tag-editor__input-row">
+                <input
+                  value={techDraft}
+                  onChange={(event) => setTechDraft(event.target.value)}
+                  onKeyDown={handleTechKeyDown}
+                  placeholder="Digite uma tecnologia e pressione Enter"
+                />
+                <button type="button" className="project-detail__ghost-btn" onClick={addTech}>
+                  Adicionar
+                </button>
+              </div>
+            </div>
+          </label>
+          <div className="project-info-form__actions">
+            <button type="button" className="project-detail__ghost-btn" onClick={cancelEditing}>
+              Cancelar
+            </button>
+            <button type="submit" className="project-detail__primary-btn">
+              Salvar
+            </button>
+          </div>
+        </form>
+      </div>
+    )
+  }
+
   return (
     <div className="project-detail__card">
-      <div className="project-detail__panel-title">Informações</div>
+      <div className="project-detail__panel-title">
+        <span>Informações</span>
+        {canManage && (
+          <button type="button" aria-label="Editar informações do projeto" onClick={() => setEditing(true)}>
+            <PencilLine size={15} aria-hidden="true" />
+          </button>
+        )}
+      </div>
       <dl className="project-detail__info">
         <InfoRow icon={Users} label="Responsável" value={project.responsible} />
         {project.client && <InfoRow icon={Users} label="Cliente" value={project.client} />}
-        <InfoRow icon={Calendar} label="Criado em" value={project.createdAt} />
-        <InfoRow icon={Calendar} label="Atualizado" value={project.updatedAt} />
+        <InfoRow icon={Calendar} label="Criado em" value={formatDateBR(project.createdAt)} />
+        <InfoRow icon={Calendar} label="Atualizado" value={formatDateBR(project.updatedAt)} />
       </dl>
       <TagList icon={Tag} label="Tags" values={project.tags} />
       {project.tech && <TagList icon={FileCode} label="Tecnologias" values={project.tech} featured />}
@@ -416,22 +1523,30 @@ function TagList({
   )
 }
 
-function RelatedFiles({ project }: { project: Project }) {
-  if (!project.attachments.length) return null
+function RelatedFiles({
+  attachments,
+  onOpenAttachment,
+}: {
+  attachments: ProjectAttachment[]
+  onOpenAttachment: (attachment: ProjectAttachment) => void
+}) {
+  if (!attachments.length) return null
 
   return (
     <div className="project-detail__card">
       <div className="project-detail__panel-title">Arquivos</div>
       <ul className="project-related-list">
-        {project.attachments.slice(0, 4).map((attachment) => (
+        {attachments.slice(0, 4).map((attachment) => (
           <li key={attachment.id}>
-            <FileIcon type={attachment.type} />
-            <div>
-              <strong>{attachment.name}</strong>
-              <span>
-                {attachment.type.toUpperCase()} · {attachment.size}
-              </span>
-            </div>
+            <button type="button" className="project-related-list__button" onClick={() => onOpenAttachment(attachment)}>
+              <FileIcon type={attachment.type} />
+              <div>
+                <strong>{attachment.name}</strong>
+                <span>
+                  {attachment.type.toUpperCase()} · {attachment.size}
+                </span>
+              </div>
+            </button>
           </li>
         ))}
       </ul>
@@ -439,8 +1554,8 @@ function RelatedFiles({ project }: { project: Project }) {
   )
 }
 
-function RelatedLessons({ project }: { project: Project }) {
-  if (!project.lessons.length) return null
+function RelatedLessons({ lessons }: { lessons: ProjectLesson[] }) {
+  if (!lessons.length) return null
 
   return (
     <div className="project-detail__card">
@@ -449,10 +1564,17 @@ function RelatedLessons({ project }: { project: Project }) {
         Lições
       </div>
       <ul className="project-detail__lessons">
-        {project.lessons.slice(0, 3).map((lesson) => (
+        {lessons.slice(0, 3).map((lesson) => (
           <li key={lesson.id}>
             <strong>{lesson.title}</strong>
             <span>{lesson.description}</span>
+            {Boolean(lesson.tags?.length) && (
+              <div className="project-lesson-tags project-lesson-tags--compact" aria-label="Tags da lição">
+                {lesson.tags?.map((tag) => (
+                  <span key={tag}>#{tag}</span>
+                ))}
+              </div>
+            )}
           </li>
         ))}
       </ul>
@@ -478,62 +1600,486 @@ function FileIcon({ type }: { type: string }) {
   )
 }
 
-function FilesView({ project }: { project: Project }) {
+function AttachmentPreviewDialog({
+  attachment,
+  citationLocations,
+  onClose,
+}: {
+  attachment: ProjectAttachment | null
+  citationLocations: SectionOption[]
+  onClose: () => void
+}) {
+  if (!attachment) return null
+
+  return (
+    <Dialog
+      open
+      fullWidth
+      maxWidth="md"
+      className="project-attachment-dialog"
+      onClose={onClose}
+    >
+      <DialogContent className="project-attachment-dialog__content">
+        <header className="project-attachment-dialog__header">
+          <FileIcon type={attachment.type} />
+          <div>
+            <span className="eyebrow eyebrow--accent">// prévia do arquivo</span>
+            <h2>{attachment.name}</h2>
+            <p>
+              {attachment.type.toUpperCase()} · {attachment.size} · Enviado em {formatDateBR(attachment.uploadedAt)}
+            </p>
+          </div>
+          <button type="button" className="project-attachment-dialog__close" aria-label="Fechar prévia" onClick={onClose}>
+            <X size={18} aria-hidden="true" />
+          </button>
+        </header>
+
+        <AttachmentPreviewBody attachment={attachment} citationLocations={citationLocations} />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function AttachmentPreviewBody({
+  attachment,
+  citationLocations,
+}: {
+  attachment: ProjectAttachment
+  citationLocations: SectionOption[]
+}) {
+  if (attachment.type === 'pdf') {
+    if (attachment.url) {
+      return (
+        <div className="project-file-preview project-file-preview--pdf-embed">
+          <iframe src={attachment.url} title={`Prévia de ${attachment.name}`} />
+          <div className="project-file-preview__backend-meta">
+            <div className="project-file-preview__summary">
+              <strong>Documento disponível para consulta</strong>
+            </div>
+            {citationLocations.length > 0 && (
+              <dl className="project-file-preview__technical-details">
+                <div>
+                  <dt>Citado em</dt>
+                  <dd>
+                    <ul>
+                      {citationLocations.map((location) => (
+                        <li key={location.id}>{`${'  '.repeat(location.depth)}${location.title}`}</li>
+                      ))}
+                    </ul>
+                  </dd>
+                </div>
+              </dl>
+            )}
+            <a href={attachment.url} target="_blank" rel="noreferrer">
+              Abrir PDF em nova aba
+            </a>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className="project-file-preview project-file-preview--pdf">
+        <div className="project-file-preview__page">
+          <div className="project-file-preview__page-header">Mapa informacional</div>
+          <h3>Resumo executivo</h3>
+          <p>Estrutura recomendada para organizar documentação, decisões e aprendizados por projeto.</p>
+          <div className="project-file-preview__lines">
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
+          <div className="project-file-preview__callout">Governança · Busca · Reutilização</div>
+        </div>
+        <aside>
+          <strong>PDF de exemplo</strong>
+          <span>2 páginas detectadas</span>
+          <span>Texto pesquisável disponível</span>
+          <span>Clique nas citações para voltar a esta prévia.</span>
+        </aside>
+      </div>
+    )
+  }
+
+  if (attachment.type === 'md') {
+    return (
+      <pre className="project-file-preview project-file-preview--code">
+        <code>{`# Decisões de arquitetura
+
+## ADR-001: Markdown como base
+Status: aprovado
+
+Motivo:
+- Fácil revisão em PRs
+- Portável para outras ferramentas
+- Bom equilíbrio entre estrutura e velocidade
+
+## ADR-002: Citações de arquivos
+As citações [[arquivo:decisoes-arquitetura.md]] devem abrir uma prévia contextual.`}</code>
+      </pre>
+    )
+  }
+
+  if (attachment.type === 'xlsx') {
+    return (
+      <div className="project-file-preview project-file-preview--sheet">
+        <table>
+          <thead>
+            <tr>
+              <th>Perfil</th>
+              <th>Contratos</th>
+              <th>Tickets</th>
+              <th>Indicadores</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Administrador</td>
+              <td>Editar</td>
+              <td>Editar</td>
+              <td>Ver</td>
+            </tr>
+            <tr>
+              <td>Financeiro</td>
+              <td>Ver</td>
+              <td>Sem acesso</td>
+              <td>Ver</td>
+            </tr>
+            <tr>
+              <td>Suporte</td>
+              <td>Ver</td>
+              <td>Editar</td>
+              <td>Ver</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+
+  if (attachment.type === 'png' || attachment.type === 'jpg') {
+    return (
+      <div className="project-file-preview project-file-preview--image">
+        <div className="project-file-preview__mock-window">
+          <div />
+          <div />
+          <div />
+        </div>
+        <div className="project-file-preview__flow">
+          <span>Editor</span>
+          <ChevronRight size={18} aria-hidden="true" />
+          <span>Preview</span>
+          <ChevronRight size={18} aria-hidden="true" />
+          <span>Anexos</span>
+        </div>
+        <p>{attachment.name}</p>
+      </div>
+    )
+  }
+
+  return (
+    <article className="project-file-preview project-file-preview--doc">
+      <h3>Contrato de API</h3>
+      <p>
+        Documento de exemplo com endpoints, responsabilidades e regras de compatibilidade entre sistemas.
+      </p>
+      <div className="project-file-preview__lines">
+        <span />
+        <span />
+        <span />
+      </div>
+    </article>
+  )
+}
+
+function FilesView({
+  attachments,
+  canManage,
+  onAddAttachment,
+  onDeleteAttachment,
+  onOpenAttachment,
+}: {
+  attachments: ProjectAttachment[]
+  canManage: boolean
+  onAddAttachment: (file: File) => void
+  onDeleteAttachment: (attachment: ProjectAttachment) => void
+  onOpenAttachment: (attachment: ProjectAttachment) => void
+}) {
+  const [selectedAttachment, setSelectedAttachment] = useState<ProjectAttachment | null>(attachments[0] ?? null)
+
+  function openAttachment(attachment: ProjectAttachment) {
+    setSelectedAttachment(attachment)
+    onOpenAttachment(attachment)
+  }
+
+  useEffect(() => {
+    setSelectedAttachment((current) => {
+      if (!attachments.length) return null
+      if (current && attachments.some((attachment) => attachment.id === current.id)) return current
+      return attachments[0]
+    })
+  }, [attachments])
+
   return (
     <section className="project-tab-panel">
       <div className="project-tab-panel__header">
         <h2>Arquivos do projeto</h2>
-        <button type="button" className="project-detail__primary-btn">
-          <Plus size={16} aria-hidden="true" />
-          Enviar arquivo
-        </button>
+        {canManage && (
+          <label className="project-detail__primary-btn project-upload-button">
+            <Plus size={16} aria-hidden="true" />
+            Enviar arquivo
+            <input
+              type="file"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                if (file) onAddAttachment(file)
+                event.target.value = ''
+              }}
+            />
+          </label>
+        )}
       </div>
-      {project.attachments.length === 0 ? (
+      {attachments.length === 0 ? (
         <EmptyState icon={Paperclip} text="Nenhum arquivo anexado." />
       ) : (
         <div className="project-files-grid">
-          {project.attachments.map((attachment) => (
-            <article key={attachment.id} className="project-file-card">
+          {attachments.map((attachment) => (
+            <article
+              key={attachment.id}
+              className="project-file-card"
+              role="button"
+              tabIndex={0}
+              onClick={() => openAttachment(attachment)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return
+                event.preventDefault()
+                openAttachment(attachment)
+              }}
+            >
               <FileIcon type={attachment.type} />
               <div>
                 <h3>{attachment.name}</h3>
                 <span>
                   {attachment.type.toUpperCase()} · {attachment.size}
                 </span>
-                <p>Enviado em {attachment.uploadedAt}</p>
+                <p>Enviado em {formatDateBR(attachment.uploadedAt)}</p>
               </div>
+              <button
+                type="button"
+                className="project-detail__ghost-btn project-detail__ghost-btn--compact"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  openAttachment(attachment)
+                }}
+              >
+                <Eye size={14} aria-hidden="true" />
+                Ver
+              </button>
+              {canManage && (
+                <button
+                  type="button"
+                  className="project-detail__danger-btn project-detail__danger-btn--compact"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onDeleteAttachment(attachment)
+                  }}
+                >
+                  <Trash2 size={14} aria-hidden="true" />
+                  Apagar
+                </button>
+              )}
             </article>
           ))}
         </div>
+      )}
+      {selectedAttachment && (
+        <aside className="project-attachment-viewer" aria-label="Detalhes do anexo selecionado">
+          <FileIcon type={selectedAttachment.type} />
+          <div>
+            <span className="eyebrow eyebrow--accent">// anexo selecionado</span>
+            <h3>{selectedAttachment.name}</h3>
+            <p>
+              Arquivo {selectedAttachment.type.toUpperCase()} com {selectedAttachment.size}, enviado em{' '}
+              {formatDateBR(selectedAttachment.uploadedAt)}.
+            </p>
+            <code>{`[[arquivo:${selectedAttachment.name}]]`}</code>
+          </div>
+        </aside>
       )}
     </section>
   )
 }
 
-function LessonsView({ project }: { project: Project }) {
+function LessonsView({
+  lessons,
+  canManage,
+  onAddLesson,
+  onDeleteLesson,
+  onUpdateLesson,
+}: {
+  lessons: ProjectLesson[]
+  canManage: boolean
+  onAddLesson: (lesson: Omit<ProjectLesson, 'id' | 'createdAt'>) => void
+  onDeleteLesson: (lesson: ProjectLesson) => void
+  onUpdateLesson: (lessonId: string, lesson: Omit<ProjectLesson, 'id' | 'createdAt'>) => void
+}) {
+  const [editingLessonId, setEditingLessonId] = useState<string | null>(null)
+  const [draft, setDraft] = useState({
+    title: '',
+    description: '',
+    recommendation: '',
+    tags: '',
+  })
+
+  function updateDraft(field: keyof typeof draft, value: string) {
+    setDraft((current) => ({ ...current, [field]: value }))
+  }
+
+  function startCreation() {
+    setEditingLessonId('new')
+    setDraft({ title: '', description: '', recommendation: '', tags: '' })
+  }
+
+  function startEditing(lesson: ProjectLesson) {
+    setEditingLessonId(lesson.id)
+    setDraft({
+      title: lesson.title,
+      description: lesson.description,
+      recommendation: lesson.recommendation,
+      tags: lesson.tags?.join(', ') ?? '',
+    })
+  }
+
+  function cancelEditingLesson() {
+    setEditingLessonId(null)
+    setDraft({ title: '', description: '', recommendation: '', tags: '' })
+  }
+
+  function submitLesson(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    const title = draft.title.trim()
+    const description = draft.description.trim()
+    const recommendation = draft.recommendation.trim()
+    const tags = parseLessonTags(draft.tags)
+
+    if (!title || !description || !recommendation) {
+      showToast('Preencha todos os campos da lição', 'warning')
+      return
+    }
+
+    if (editingLessonId === 'new') {
+      onAddLesson({ title, description, recommendation, tags })
+    } else if (editingLessonId) {
+      onUpdateLesson(editingLessonId, { title, description, recommendation, tags })
+    }
+
+    cancelEditingLesson()
+  }
+
   return (
     <section className="project-lessons-panel">
-      <div className="project-lessons-panel__actions">
-        <button type="button" className="project-detail__primary-btn">
-          <Plus size={16} aria-hidden="true" />
-          Nova lição
-        </button>
-      </div>
-      {project.lessons.length === 0 ? (
+      {canManage && (
+        <div className="project-lessons-panel__actions">
+          <button type="button" className="project-detail__primary-btn" onClick={startCreation}>
+            <Plus size={16} aria-hidden="true" />
+            Nova lição
+          </button>
+        </div>
+      )}
+      {canManage && editingLessonId && (
+        <form className="project-lesson-form" onSubmit={submitLesson}>
+          <label>
+            Título
+            <input
+              value={draft.title}
+              autoFocus
+              onChange={(event) => updateDraft('title', event.target.value)}
+              placeholder="Ex.: Validar fluxo com usuários reais"
+            />
+          </label>
+          <label>
+            Descrição
+            <textarea
+              value={draft.description}
+              onChange={(event) => updateDraft('description', event.target.value)}
+              placeholder="Descreva o aprendizado registrado"
+            />
+          </label>
+          <label>
+            Recomendação
+            <textarea
+              value={draft.recommendation}
+              onChange={(event) => updateDraft('recommendation', event.target.value)}
+              placeholder="Qual ação deve ser tomada nos próximos projetos?"
+            />
+          </label>
+          <label>
+            Tags para IA
+            <input
+              value={draft.tags}
+              onChange={(event) => updateDraft('tags', event.target.value)}
+              placeholder="Ex.: onboarding, suporte, risco"
+            />
+          </label>
+          <div>
+            <button type="button" className="project-detail__ghost-btn" onClick={cancelEditingLesson}>
+              Cancelar
+            </button>
+            <button type="submit" className="project-detail__primary-btn">
+              {editingLessonId === 'new' ? 'Criar lição' : 'Salvar lição'}
+            </button>
+          </div>
+        </form>
+      )}
+      {lessons.length === 0 ? (
         <EmptyState icon={Lightbulb} text="Nenhuma lição registrada ainda." />
       ) : (
-        project.lessons.map((lesson) => (
-          <article key={lesson.id} className="project-lesson-card">
+        lessons.map((lesson) => (
+          <article
+            key={lesson.id}
+            className="project-lesson-card"
+            data-ai-lesson-id={lesson.id}
+            data-ai-tags={lesson.tags?.join(',') ?? ''}
+          >
             <div className="project-lesson-card__icon">
               <Lightbulb size={20} aria-hidden="true" />
             </div>
             <div>
               <header>
                 <h2>{lesson.title}</h2>
-                <span>{lesson.createdAt}</span>
+                <span>{formatDateBR(lesson.createdAt)}</span>
+                {canManage && (
+                  <div className="project-lesson-card__actions">
+                    <button
+                      type="button"
+                      className="project-detail__ghost-btn project-detail__ghost-btn--compact"
+                      onClick={() => startEditing(lesson)}
+                    >
+                      <PencilLine size={14} aria-hidden="true" />
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      className="project-detail__danger-btn project-detail__danger-btn--compact"
+                      onClick={() => onDeleteLesson(lesson)}
+                    >
+                      <Trash2 size={14} aria-hidden="true" />
+                      Apagar
+                    </button>
+                  </div>
+                )}
               </header>
               <p>{lesson.description}</p>
-              <div>
+              {Boolean(lesson.tags?.length) && (
+                <div className="project-lesson-tags" aria-label="Tags da lição">
+                  {lesson.tags?.map((tag) => (
+                    <span key={tag}>#{tag}</span>
+                  ))}
+                </div>
+              )}
+              <div className="project-lesson-card__recommendation">
                 <span>Recomendação</span>
                 {lesson.recommendation}
               </div>
@@ -563,7 +2109,7 @@ function HistoryView({ project }: { project: Project }) {
                 <strong>{history.author}</strong> <span>{history.action.toLowerCase()}</span>{' '}
                 <em>{history.target}</em>
               </p>
-              <time>{history.at}</time>
+              <time>{formatDateBR(history.at)}</time>
             </div>
           </li>
         ))}

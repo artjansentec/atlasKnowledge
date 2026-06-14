@@ -190,6 +190,24 @@
   line-height: 1.55;
 }
 
+.lesson-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.lesson-card__tags span {
+  border: 1px solid rgba(56, 173, 72, 0.2);
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: var(--primary);
+  background: var(--accent-bg);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .lesson-card__recommendation {
   margin-top: 14px;
   border-left: 3px solid var(--primary);

@@ -1,13 +1,14 @@
 import { type ReactNode, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
-  Bell,
   Command,
   FolderKanban,
   LayoutDashboard,
   Lightbulb,
+  LogOut,
   Search,
   Sparkles,
+  UserCircle,
 } from 'lucide-react'
 import './app-shell.css'
 
@@ -27,6 +28,10 @@ export function AppShell({ children }: { children?: ReactNode }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const [q, setQ] = useState('')
+
+  function logout() {
+    navigate('/login')
+  }
 
   return (
     <div className="app-shell">
@@ -66,6 +71,24 @@ export function AppShell({ children }: { children?: ReactNode }) {
         </nav>
 
         <div className="app-shell__sidebar-footer">
+          <div className="app-shell__profile-card">
+            <div className="app-shell__profile-avatar bg-gradient-primary" aria-hidden="true">
+              MC
+            </div>
+            <div>
+              <strong>Marina Costa</strong>
+              <span>
+                <UserCircle size={12} aria-hidden="true" />
+                Cliente logado
+              </span>
+            </div>
+          </div>
+
+          <button type="button" className="app-shell__logout-button" onClick={logout}>
+            <LogOut size={16} aria-hidden="true" />
+            Sair
+          </button>
+
           <div className="app-shell__ai-card bg-gradient-subtle">
             <div className="app-shell__ai-label">
               <Sparkles size={12} aria-hidden="true" />
@@ -103,14 +126,6 @@ export function AppShell({ children }: { children?: ReactNode }) {
               </kbd>
             </div>
           </form>
-
-          <button type="button" className="app-shell__icon-btn" aria-label="Notificações">
-            <Bell size={16} aria-hidden="true" />
-          </button>
-
-          <div className="app-shell__avatar bg-gradient-primary" aria-hidden="true">
-            MC
-          </div>
         </header>
 
         <main className="app-shell__content">{children ?? <Outlet />}</main>

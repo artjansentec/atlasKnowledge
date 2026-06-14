@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUpRight, Calendar, FolderKanban, Lightbulb, Search } from 'lucide-react'
+import { formatDateBR } from '../lib/date'
 import { projects } from '../lib/projects'
 import './css/lessons.css'
 
@@ -21,10 +22,10 @@ function LessonsPage() {
     const normalizedQuery = query.trim().toLowerCase()
 
     return lessons
-      .filter(({ title, description, recommendation, project }) => {
+      .filter(({ title, description, recommendation, tags, project }) => {
         if (!normalizedQuery) return true
 
-        return [title, description, recommendation, project.name, project.description, project.responsible]
+        return [title, description, recommendation, tags?.join(' '), project.name, project.description, project.responsible]
           .join(' ')
           .toLowerCase()
           .includes(normalizedQuery)
@@ -73,8 +74,14 @@ function LessonsPage() {
         </section>
       ) : (
         <section className="lessons-list" aria-label="Lista de lições aprendidas">
-          {visibleLessons.map(({ id, title, description, recommendation, createdAt, project }) => (
-            <Link key={id} to={`/projects/${project.slug}`} className="lesson-card">
+          {visibleLessons.map(({ id, title, description, recommendation, createdAt, tags, project }) => (
+            <Link
+              key={id}
+              to={`/projects/${project.slug}`}
+              className="lesson-card"
+              data-ai-lesson-id={id}
+              data-ai-tags={tags?.join(',') ?? ''}
+            >
               <div className="lesson-card__icon">
                 <Lightbulb size={20} aria-hidden="true" />
               </div>
@@ -84,7 +91,7 @@ function LessonsPage() {
                   <h2>{title}</h2>
                   <span>
                     <Calendar size={14} aria-hidden="true" />
-                    {createdAt}
+                    {formatDateBR(createdAt)}
                   </span>
                 </div>
 
@@ -94,6 +101,14 @@ function LessonsPage() {
                 </div>
 
                 <p>{description}</p>
+
+                {Boolean(tags?.length) && (
+                  <div className="lesson-card__tags" aria-label="Tags da lição">
+                    {tags?.map((tag) => (
+                      <span key={tag}>#{tag}</span>
+                    ))}
+                  </div>
+                )}
 
                 <div className="lesson-card__recommendation">
                   <span>Recomendação</span>

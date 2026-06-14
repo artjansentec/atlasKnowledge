@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowUpRight, Clock3, FileText, FolderKanban, Lightbulb, Search } from 'lucide-react'
+import { formatDateBR } from '../lib/date'
 import { flattenSections, projects } from '../lib/projects'
 import './css/search.css'
 
@@ -173,7 +174,7 @@ function buildSearchResults(query: string): SearchResult[] {
           type: 'project',
           title: project.name,
           snippet: project.description,
-          meta: `Responsável: ${project.responsible} · Atualizado em ${project.updatedAt}`,
+          meta: `Responsável: ${project.responsible} · Atualizado em ${formatDateBR(project.updatedAt)}`,
           projectSlug: project.slug,
           projectName: project.name,
         },
@@ -195,8 +196,10 @@ function buildSearchResults(query: string): SearchResult[] {
         id: `${project.id}-lesson-${lesson.id}`,
         type: 'lesson',
         title: lesson.title,
-        snippet: lesson.description,
-        meta: `Lição aprendida · ${project.responsible}`,
+        snippet: [lesson.description, lesson.recommendation, lesson.tags?.join(' ')].filter(Boolean).join(' '),
+        meta: `Lição aprendida · ${project.responsible}${
+          lesson.tags?.length ? ` · Tags: ${lesson.tags.map((tag) => `#${tag}`).join(' ')}` : ''
+        }`,
         projectSlug: project.slug,
         projectName: project.name,
       }))
@@ -206,7 +209,7 @@ function buildSearchResults(query: string): SearchResult[] {
         type: 'update',
         title: history.action,
         snippet: `Atualização em ${history.target}.`,
-        meta: history.at,
+        meta: formatDateBR(history.at),
         projectSlug: project.slug,
         projectName: project.name,
       }))

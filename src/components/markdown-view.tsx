@@ -1,3 +1,5 @@
+import { type ReactNode } from 'react'
+import { type ProjectAttachment } from '../lib/projects'
 import './markdown-view.css'
 
 type MarkdownBlock =
@@ -6,7 +8,15 @@ type MarkdownBlock =
   | { type: 'quote'; text: string }
   | { type: 'list'; items: string[] }
 
-export function MarkdownView({ content }: { content: string }) {
+export function MarkdownView({
+  content,
+  attachments = [],
+  onOpenAttachment,
+}: {
+  content: string
+  attachments?: ProjectAttachment[]
+  onOpenAttachment?: (attachment: ProjectAttachment) => void
+}) {
   const blocks = parseMarkdown(content)
 
   return (
@@ -14,25 +24,69 @@ export function MarkdownView({ content }: { content: string }) {
       {blocks.map((block, index) => {
         if (block.type === 'heading') {
           const Heading = `h${block.level}` as 'h1' | 'h2' | 'h3'
-          return <Heading key={index}>{block.text}</Heading>
+          return <Heading key={index}>{renderInlineContent(block.text, attachments, onOpenAttachment)}</Heading>
         }
 
-        if (block.type === 'quote') return <blockquote key={index}>{block.text}</blockquote>
+        if (block.type === 'quote') {
+          return <blockquote key={index}>{renderInlineContent(block.text, attachments, onOpenAttachment)}</blockquote>
+        }
 
         if (block.type === 'list') {
           return (
             <ul key={index}>
               {block.items.map((item) => (
-                <li key={item}>{item}</li>
+                <li key={item}>{renderInlineContent(item, attachments, onOpenAttachment)}</li>
               ))}
             </ul>
           )
         }
 
-        return <p key={index}>{block.text}</p>
+        return <p key={index}>{renderInlineContent(block.text, attachments, onOpenAttachment)}</p>
       })}
     </div>
   )
+}
+
+function renderInlineContent(
+  text: string,
+  attachments: ProjectAttachment[],
+  onOpenAttachment?: (attachment: ProjectAttachment) => void,
+) {
+  const parts: ReactNode[] = []
+  const citationPattern = /\[\[arquivo:([^\]]+)]]/g
+  let lastIndex = 0
+  let match: RegExpExecArray | null
+
+  while ((match = citationPattern.exec(text))) {
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index))
+
+    const attachmentKey = match[1].trim()
+    const attachment = attachments.find((item) => item.id === attachmentKey || item.name === attachmentKey)
+
+    if (attachment) {
+      parts.push(
+        <button
+          key={`${attachment.id}-${match.index}`}
+          type="button"
+          className="markdown-file-reference"
+          onClick={() => onOpenAttachment?.(attachment)}
+        >
+          {attachment.name}
+          <small>
+            {attachment.type.toUpperCase()} · {attachment.size}
+          </small>
+        </button>,
+      )
+    } else {
+      parts.push(match[0])
+    }
+
+    lastIndex = match.index + match[0].length
+  }
+
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex))
+
+  return parts
 }
 
 function parseMarkdown(content: string): MarkdownBlock[] {
