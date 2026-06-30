@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { AlertTriangle, ArrowUpRight, Calendar, Eye, FolderKanban, Lightbulb, Rocket, Search, Trophy } from 'lucide-react'
 import { formatDateBR } from '../lib/date'
-import { lessonTypeLabels, lessonTypeOptions, projects, type ProjectLessonType } from '../lib/projects'
+import { listAllLessons, type LessonWithProject } from '../lib/projects-api'
+import { lessonTypeLabels, lessonTypeOptions, type ProjectLessonType } from '../lib/projects'
 import './css/lessons.css'
 
 const lessonTypeIcons: Record<ProjectLessonType, typeof Lightbulb> = {
@@ -70,16 +71,34 @@ function LessonTypeGuide({
 function LessonsPage() {
   const [query, setQuery] = useState('')
   const [selectedLessonType, setSelectedLessonType] = useState<ProjectLessonType | null>(null)
+  const [lessons, setLessons] = useState<LessonWithProject[]>([])
+  const [loading, setLoading] = useState(true)
+  const [projectCount, setProjectCount] = useState(0)
 
   useEffect(() => {
     document.title = 'Lições · Atlas Knowledge'
   }, [])
 
-  const lessons = useMemo(
-    () =>
-      projects.flatMap((project) => project.lessons.map((lesson) => ({ ...lesson, project }))),
-    [],
-  )
+  useEffect(() => {
+    let cancelled = false
+
+    async function load() {
+      setLoading(true)
+      try {
+        const data = await listAllLessons()
+        if (cancelled) return
+        setLessons(data)
+        setProjectCount(new Set(data.map((lesson) => lesson.project.slug)).size)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const visibleLessons = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
@@ -127,7 +146,7 @@ function LessonsPage() {
           <strong>{visibleLessons.length}</strong>
           <span>
             {visibleLessons.length === 1 ? 'lição encontrada' : 'lições encontradas'} em{' '}
-            {projects.length} projetos
+            {projectCount} projetos
           </span>
         </div>
       </section>
@@ -145,7 +164,12 @@ function LessonsPage() {
 
       <LessonTypeGuide selectedType={selectedLessonType} onSelectType={toggleLessonType} />
 
-      {visibleLessons.length === 0 ? (
+      {loading ? (
+        <section className="lessons-empty">
+          <Lightbulb size={34} aria-hidden="true" />
+          <strong>Carregando lições...</strong>
+        </section>
+      ) : visibleLessons.length === 0 ? (
         <section className="lessons-empty">
           <Lightbulb size={34} aria-hidden="true" />
           <strong>Nenhuma lição encontrada</strong>

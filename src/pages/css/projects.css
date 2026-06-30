@@ -61,7 +61,7 @@
   border-radius: 10px;
   padding: 0 18px;
   color: #fff;
-  background: linear-gradient(135deg, rgb(56, 173, 72), rgb(36, 132, 49));
+  background: var(--gradient-primary);
   box-shadow: var(--shadow);
   font-size: 15px;
   font-weight: 700;

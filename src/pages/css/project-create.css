@@ -130,7 +130,6 @@
 }
 
 .project-create__field input,
-.project-create__field select,
 .project-create__field textarea {
   width: 100%;
   border: 1px solid var(--input);
@@ -141,9 +140,12 @@
   font-size: 14px;
 }
 
-.project-create__field input,
-.project-create__field select {
+.project-create__field input {
   height: 42px;
+}
+
+.project-create__field--select .MuiFormControl-root {
+  margin-top: 1px;
 }
 
 .project-create__field textarea {

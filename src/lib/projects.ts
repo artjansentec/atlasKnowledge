@@ -1,6 +1,4 @@
-﻿import { mockBackend } from './mock-backend'
-
-export type ProjectStatus = 'active' | 'paused' | 'done'
+﻿export type ProjectStatus = 'active' | 'paused' | 'done'
 export type ProjectLessonType = 'problem' | 'attention' | 'future' | 'success'
 
 export const lessonTypeOptions: { value: ProjectLessonType; label: string; description: string }[] = [
@@ -48,6 +46,45 @@ export type ProjectAttachment = {
   url?: string
 }
 
+export function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+export function getAttachmentFileType(attachment: {
+  name: string
+  type?: string
+  mimeType?: string
+}) {
+  if (attachment.type) return attachment.type
+
+  const extension = attachment.name.split('.').pop()?.toLowerCase()
+  if (extension) return extension
+
+  if (attachment.mimeType?.includes('/')) {
+    return attachment.mimeType.split('/')[1]?.split('+')[0] ?? 'file'
+  }
+
+  return 'file'
+}
+
+export function normalizeAttachment(
+  partial: Partial<ProjectAttachment> & { id: string; name: string; fileId?: string },
+  file?: File,
+): ProjectAttachment {
+  return {
+    id: partial.id,
+    backendFileId: partial.backendFileId ?? partial.fileId,
+    name: partial.name,
+    type: getAttachmentFileType(partial),
+    mimeType: partial.mimeType ?? file?.type,
+    size: partial.size ?? (file ? formatFileSize(file.size) : '—'),
+    uploadedAt: partial.uploadedAt ?? new Date().toISOString().slice(0, 10),
+    url: partial.url,
+  }
+}
+
 export type ProjectLesson = {
   id: string
   type: ProjectLessonType
@@ -85,16 +122,10 @@ export type Project = {
   history: ProjectHistory[]
 }
 
-export const projects = mockBackend.listProjects()
-
 export const statusLabels: Record<ProjectStatus, string> = {
   active: 'Ativo',
   paused: 'Pausado',
   done: 'Concluído',
-}
-
-export function getProject(slug: string | undefined) {
-  return mockBackend.getProjectBySlug(slug)
 }
 
 export function flattenSections(sections: Section[], depth = 0): { section: Section; depth: number }[] {
@@ -106,8 +137,4 @@ export function flattenSections(sections: Section[], depth = 0): { section: Sect
 
 export function getSectionTitles(sections: Section[]) {
   return flattenSections(sections).map(({ section }) => section.title)
-}
-
-export function getProjectUpdates() {
-  return mockBackend.listProjectUpdates()
 }

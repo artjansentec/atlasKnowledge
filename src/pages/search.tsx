@@ -1,22 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { ArrowUpRight, Clock3, FileText, FolderKanban, Lightbulb, Search } from 'lucide-react'
-import { formatDateBR } from '../lib/date'
-import { flattenSections, projects } from '../lib/projects'
+import {
+  emptySearchResponse,
+  getSearchCounts,
+  normalizeSearchResponse,
+  searchGlobal,
+  type SearchResponse,
+  type SearchResultItem,
+} from '../lib/projects-api'
 import './css/search.css'
 
-type SearchResultType = 'project' | 'section' | 'lesson' | 'update'
-
-type SearchResult = {
-  id: string
-  type: SearchResultType
-  title: string
-  snippet: string
-  meta: string
-  href: string
-  projectSlug: string
-  projectName: string
-}
+type SearchResultType = SearchResultItem['type']
+type SearchTab = 'all' | SearchResultType
 
 const tabs = [
   { id: 'all', label: 'Tudo', icon: Search },
@@ -24,7 +20,7 @@ const tabs = [
   { id: 'section', label: 'Seções', icon: FileText },
   { id: 'lesson', label: 'Lições', icon: Lightbulb },
   { id: 'update', label: 'Atualizações', icon: Clock3 },
-] as const
+] as const satisfies ReadonlyArray<{ id: SearchTab; label: string; icon: typeof Search }>
 
 const typeLabels: Record<SearchResultType, string> = {
   project: 'Projeto',
@@ -33,11 +29,28 @@ const typeLabels: Record<SearchResultType, string> = {
   update: 'Atualização',
 }
 
+const tabResultKey: Record<Exclude<SearchTab, 'all'>, keyof SearchResponse> = {
+  project: 'projects',
+  section: 'sections',
+  lesson: 'lessons',
+  update: 'updates',
+}
+
+const resultGroups: Array<{ id: SearchResultType; label: string; key: keyof SearchResponse }> = [
+  { id: 'project', label: 'Projetos', key: 'projects' },
+  { id: 'section', label: 'Seções', key: 'sections' },
+  { id: 'lesson', label: 'Lições', key: 'lessons' },
+  { id: 'update', label: 'Atualizações', key: 'updates' },
+]
+
 function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const initialQuery = searchParams.get('q') ?? ''
   const [query, setQuery] = useState(initialQuery)
-  const [tab, setTab] = useState<(typeof tabs)[number]['id']>('all')
+  const [tab, setTab] = useState<SearchTab>('all')
+  const [results, setResults] = useState<SearchResponse>(emptySearchResponse)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     document.title = 'Busca · Atlas Knowledge'
@@ -47,17 +60,52 @@ function SearchPage() {
     setQuery(initialQuery)
   }, [initialQuery])
 
-  const results = useMemo(() => buildSearchResults(query), [query])
-  const visibleResults = tab === 'all' ? results : results.filter((result) => result.type === tab)
+  useEffect(() => {
+    const normalizedQuery = query.trim()
+    if (!normalizedQuery) {
+      setResults(emptySearchResponse())
+      setError(null)
+      return
+    }
 
-  const counts = useMemo(
-    () => ({
-      all: results.length,
-      project: results.filter((result) => result.type === 'project').length,
-      section: results.filter((result) => result.type === 'section').length,
-      lesson: results.filter((result) => result.type === 'lesson').length,
-      update: results.filter((result) => result.type === 'update').length,
-    }),
+    let cancelled = false
+    const timeout = window.setTimeout(async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const response = await searchGlobal(normalizedQuery)
+        if (!cancelled) setResults(normalizeSearchResponse(response))
+      } catch (err) {
+        if (!cancelled) {
+          setResults(emptySearchResponse())
+          setError(err instanceof Error ? err.message : 'Falha ao buscar')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }, 300)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeout)
+    }
+  }, [query])
+
+  const counts = useMemo(() => getSearchCounts(results), [results])
+
+  const visibleResults = useMemo(() => {
+    if (tab === 'all') return null
+    return results[tabResultKey[tab]]
+  }, [results, tab])
+
+  const groupedResults = useMemo(
+    () =>
+      resultGroups
+        .map((group) => ({
+          ...group,
+          items: results[group.key],
+        }))
+        .filter((group) => group.items.length > 0),
     [results],
   )
 
@@ -72,6 +120,8 @@ function SearchPage() {
 
     setSearchParams({}, { replace: true })
   }
+
+  const hasResults = counts.all > 0
 
   return (
     <div className="search-page">
@@ -130,7 +180,18 @@ function SearchPage() {
           <strong>Digite para começar a busca</strong>
           <span>Use termos de projetos, responsáveis, seções, lições ou histórico.</span>
         </section>
-      ) : visibleResults.length === 0 ? (
+      ) : loading ? (
+        <section className="search-empty">
+          <Search size={34} aria-hidden="true" />
+          <strong>Buscando...</strong>
+        </section>
+      ) : error ? (
+        <section className="search-empty">
+          <Search size={34} aria-hidden="true" />
+          <strong>Erro na busca</strong>
+          <span>{error}</span>
+        </section>
+      ) : !hasResults ? (
         <section className="search-empty">
           <Search size={34} aria-hidden="true" />
           <strong>Nenhum resultado encontrado</strong>
@@ -138,96 +199,50 @@ function SearchPage() {
             Não encontramos nada para <code>{query}</code>. Tente buscar por outro termo.
           </span>
         </section>
+      ) : tab === 'all' ? (
+        <div className="search-results-stack" aria-label="Resultados da busca">
+          {groupedResults.map((group) => (
+            <section key={group.id} className="search-results-group" aria-label={group.label}>
+              <header className="search-results-group__header">
+                <h2>{group.label}</h2>
+                <span>{group.items.length}</span>
+              </header>
+
+              <div className="search-results">
+                {group.items.map((result) => (
+                  <SearchResultCard key={result.id} result={result} />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
       ) : (
         <section className="search-results" aria-label="Resultados da busca">
-          {visibleResults.map((result) => (
-            <Link
-              key={result.id}
-              to={result.href}
-              className="search-result"
-            >
-              <ResultIcon type={result.type} />
-
-              <div className="search-result__content">
-                <div className="search-result__meta">
-                  <span>{typeLabels[result.type]}</span>
-                  <small>{result.projectName}</small>
-                </div>
-                <h2>{result.title}</h2>
-                <p>{result.snippet}</p>
-                <small>{result.meta}</small>
-              </div>
-
-              <ArrowUpRight className="search-result__arrow" size={17} aria-hidden="true" />
-            </Link>
-          ))}
+          {visibleResults?.map((result) => <SearchResultCard key={result.id} result={result} />)}
         </section>
       )}
     </div>
   )
 }
 
-function buildSearchResults(query: string): SearchResult[] {
-  const normalizedQuery = query.trim().toLowerCase()
-  if (!normalizedQuery) return []
+function SearchResultCard({ result }: { result: SearchResultItem }) {
+  return (
+    <Link to={result.href} className="search-result">
+      <ResultIcon type={result.type} />
 
-  return projects
-    .flatMap((project) => {
-      const projectResults: SearchResult[] = [
-        {
-          id: `${project.id}-project`,
-          type: 'project',
-          title: project.name,
-          snippet: project.description,
-          meta: `Responsável: ${project.responsible} · Atualizado em ${formatDateBR(project.updatedAt)}`,
-          href: `/projects/${project.slug}`,
-          projectSlug: project.slug,
-          projectName: project.name,
-        },
-      ]
+      <div className="search-result__content">
+        <div className="search-result__meta">
+          <span>{typeLabels[result.type]}</span>
+          <small>{result.projectName}</small>
+        </div>
+        <h2>{result.title}</h2>
+        <p>{result.snippet}</p>
+        <small>{result.meta}</small>
+      </div>
 
-      const sections = flattenSections(project.sections)
-
-      const sectionResults = sections.map<SearchResult>(({ section }) => ({
-        id: `${project.id}-section-${section.id}`,
-        type: 'section',
-        title: section.title,
-        snippet: section.content,
-        meta: `${sections.length} seções no projeto`,
-        href: `/projects/${project.slug}?section=${encodeURIComponent(section.id)}`,
-        projectSlug: project.slug,
-        projectName: project.name,
-      }))
-
-      const lessonResults = project.lessons.map<SearchResult>((lesson) => ({
-        id: `${project.id}-lesson-${lesson.id}`,
-        type: 'lesson',
-        title: lesson.title,
-        snippet: [lesson.description, lesson.recommendation, lesson.tags?.join(' ')].filter(Boolean).join(' '),
-        meta: `Lição aprendida · ${project.responsible}${
-          lesson.tags?.length ? ` · Tags: ${lesson.tags.map((tag) => `#${tag}`).join(' ')}` : ''
-        }`,
-        href: `/projects/${project.slug}?tab=lessons`,
-        projectSlug: project.slug,
-        projectName: project.name,
-      }))
-
-      const updateResults = project.history.map<SearchResult>((history) => ({
-        id: `${project.id}-update-${history.id}`,
-        type: 'update',
-        title: history.action,
-        snippet: `Atualização em ${history.target}.`,
-        meta: formatDateBR(history.at),
-        href: `/projects/${project.slug}?tab=history`,
-        projectSlug: project.slug,
-        projectName: project.name,
-      }))
-
-      return [...projectResults, ...sectionResults, ...lessonResults, ...updateResults]
-    })
-    .filter((result) =>
-      [result.title, result.snippet, result.meta, result.projectName].join(' ').toLowerCase().includes(normalizedQuery),
-    )
+      <ArrowUpRight className="search-result__arrow" size={17} aria-hidden="true" />
+    </Link>
+  )
 }
 
 function ResultIcon({ type }: { type: SearchResultType }) {

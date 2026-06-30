@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react'
-import { type ProjectAttachment } from '../lib/projects'
+import { type ProjectAttachment, getAttachmentFileType } from '../lib/projects'
 import './markdown-view.css'
 
 type MarkdownBlock =
@@ -69,7 +69,7 @@ function renderInlineContent(
           key={`${attachment.id}-${match.index}`}
           type="button"
           className="markdown-file-reference"
-          title={`${attachment.name} · ${attachment.type.toUpperCase()} · ${attachment.size}`}
+          title={`${attachment.name} · ${getAttachmentFileType(attachment).toUpperCase()} · ${attachment.size ?? '—'}`}
           onClick={() => onOpenAttachment?.(attachment)}
         >
           <span className="markdown-file-reference__name">{attachment.name}</span>

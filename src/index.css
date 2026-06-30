@@ -6,20 +6,22 @@
   --font-sans: "Work Sans", ui-sans-serif, system-ui, sans-serif;
 
   --background: oklch(0.99 0.005 150);
-  --foreground: oklch(0.18 0.02 160);
+  --text-primary: oklch(0.48 0.02 160);
+  --text-secondary: oklch(0.48 0.02 160);
+  --foreground: var(--text-primary);
   --surface: oklch(0.975 0.008 150);
   --surface-elevated: oklch(1 0 0);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.02 160);
+  --card-foreground: var(--text-primary);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.02 160);
+  --popover-foreground: var(--text-primary);
   --primary: oklch(0.65 0.18 142);
   --primary-foreground: oklch(0.99 0.005 150);
   --primary-glow: oklch(0.78 0.18 142);
   --secondary: oklch(0.96 0.01 150);
   --secondary-foreground: oklch(0.22 0.02 160);
   --muted: oklch(0.96 0.008 150);
-  --muted-foreground: oklch(0.48 0.02 160);
+  --muted-foreground: var(--text-secondary);
   --accent: oklch(0.94 0.04 145);
   --accent-foreground: oklch(0.22 0.04 150);
   --destructive: oklch(0.6 0.22 27);
@@ -72,8 +74,8 @@
   --shadow-soft: 0 1px 2px oklch(0.2 0.02 160 / 0.04), 0 1px 1px oklch(0.2 0.02 160 / 0.03);
   --shadow-elevated: 0 10px 30px -12px oklch(0.65 0.18 142 / 0.18);
 
-  --text: var(--muted-foreground);
-  --text-h: var(--foreground);
+  --text: var(--text-secondary);
+  --text-h: var(--text-primary);
   --bg: var(--background);
   --accent-bg: oklch(0.65 0.18 142 / 0.12);
   --shadow: var(--shadow-elevated);

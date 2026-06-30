@@ -11,8 +11,12 @@ import {
   Tag,
   UserRound,
 } from 'lucide-react'
+import { ApiError } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import { MarkdownView } from '../components/markdown-view'
-import { isCurrentUserAdmin } from '../lib/auth'
+import { AtlasSelect } from '../components/atlas-select'
+import { showToast } from '../components/app-alerts'
+import { createProject, listUsers, type UserListItem } from '../lib/projects-api'
 import { statusLabels, type ProjectStatus } from '../lib/projects'
 import './css/project-create.css'
 
@@ -21,7 +25,7 @@ type NewProjectDraft = {
   slug: string
   description: string
   status: ProjectStatus
-  responsible: string
+  responsibleUserId: string
   client: string
   tags: string
   tech: string
@@ -34,7 +38,7 @@ const initialDraft: NewProjectDraft = {
   slug: '',
   description: '',
   status: 'active',
-  responsible: '',
+  responsibleUserId: '',
   client: '',
   tags: '',
   tech: '',
@@ -45,18 +49,23 @@ const initialDraft: NewProjectDraft = {
 
 function ProjectCreatePage() {
   const navigate = useNavigate()
+  const { isCurrentUserAdmin } = useAuth()
   const [draft, setDraft] = useState(initialDraft)
   const [slugTouched, setSlugTouched] = useState(false)
+  const [users, setUsers] = useState<UserListItem[]>([])
+  const [submitting, setSubmitting] = useState(false)
   const canCreateProjects = isCurrentUserAdmin()
 
   useEffect(() => {
     document.title = 'Novo projeto · Atlas Knowledge'
+    void listUsers().then(setUsers).catch(() => setUsers([]))
   }, [])
 
   const tags = useMemo(() => splitList(draft.tags), [draft.tags])
   const tech = useMemo(() => splitList(draft.tech), [draft.tech])
   const previewName = draft.name.trim() || 'Novo projeto'
   const previewSlug = draft.slug.trim() || slugify(previewName)
+  const responsibleName = users.find((user) => user.id === draft.responsibleUserId)?.name ?? 'Não definido'
 
   if (!canCreateProjects) return <Navigate to="/projects" replace />
 
@@ -72,46 +81,38 @@ function ProjectCreatePage() {
     })
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!canCreateProjects) return
 
-    const now = new Date().toISOString().slice(0, 10)
-    const project = {
-      id: `local-${Date.now()}`,
-      slug: previewSlug,
-      name: previewName,
-      description: draft.description.trim(),
-      status: draft.status,
-      responsible: draft.responsible.trim(),
-      client: draft.client.trim() || undefined,
-      createdAt: now,
-      updatedAt: now,
-      tags,
-      tech,
-      attachments: [],
-      lessons: [],
-      sections: [
-        {
-          id: slugify(draft.sectionTitle || 'visao-geral'),
-          title: draft.sectionTitle.trim() || 'Visão geral',
-          content: draft.sectionContent,
-        },
-      ],
-      history: [
-        {
-          id: `history-${Date.now()}`,
-          at: now,
-          author: draft.responsible.trim(),
-          action: 'Criou o projeto',
-          target: draft.sectionTitle.trim() || 'Visão geral',
-        },
-      ],
+    if (!draft.responsibleUserId) {
+      showToast('Selecione um responsável', 'warning')
+      return
     }
 
-    localStorage.setItem('atlas:last-created-project', JSON.stringify(project))
-    sessionStorage.setItem('atlas:project-created', previewName)
-    navigate('/projects')
+    setSubmitting(true)
+    try {
+      const project = await createProject({
+        name: previewName,
+        slug: previewSlug,
+        description: draft.description.trim(),
+        status: draft.status,
+        responsibleUserId: draft.responsibleUserId,
+        client: draft.client.trim() || undefined,
+        tags,
+        tech,
+        sectionTitle: draft.sectionTitle.trim() || 'Visão geral',
+        sectionContent: draft.sectionContent,
+      })
+
+      sessionStorage.setItem('atlas:project-created', project.name)
+      navigate(`/projects/${project.slug}`)
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : 'Não foi possível criar o projeto.'
+      showToast(message, 'warning')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -171,18 +172,16 @@ function ProjectCreatePage() {
                 />
               </label>
 
-              <label className="project-create__field">
+              <label className="project-create__field project-create__field--select">
                 <span>Status</span>
-                <select
+                <AtlasSelect
                   value={draft.status}
-                  onChange={(event) => updateDraft('status', event.target.value as ProjectStatus)}
-                >
-                  {(Object.keys(statusLabels) as ProjectStatus[]).map((status) => (
-                    <option key={status} value={status}>
-                      {statusLabels[status]}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => updateDraft('status', value as ProjectStatus)}
+                  options={(Object.keys(statusLabels) as ProjectStatus[]).map((status) => ({
+                    value: status,
+                    label: statusLabels[status],
+                  }))}
+                />
               </label>
 
               <label className="project-create__field project-create__field--wide">
@@ -196,13 +195,18 @@ function ProjectCreatePage() {
                 />
               </label>
 
-              <label className="project-create__field">
+              <label className="project-create__field project-create__field--select">
                 <span>Responsável</span>
-                <input
-                  value={draft.responsible}
-                  onChange={(event) => updateDraft('responsible', event.target.value)}
-                  placeholder="Nome da pessoa responsável"
+                <AtlasSelect
+                  value={draft.responsibleUserId}
+                  onChange={(value) => updateDraft('responsibleUserId', value)}
+                  displayEmpty
+                  placeholder="Selecione um responsável"
                   required
+                  options={users.map((user) => ({
+                    value: user.id,
+                    label: user.name,
+                  }))}
                 />
               </label>
 
@@ -270,9 +274,9 @@ function ProjectCreatePage() {
               <Link to="/projects" className="project-create__secondary-action">
                 Cancelar
               </Link>
-              <button type="submit" className="project-create__primary-action">
+              <button type="submit" className="project-create__primary-action" disabled={submitting}>
                 <Save size={16} aria-hidden="true" />
-                Criar projeto
+                {submitting ? 'Criando...' : 'Criar projeto'}
               </button>
             </div>
           </section>
@@ -302,7 +306,7 @@ function ProjectCreatePage() {
                     <UserRound size={14} aria-hidden="true" />
                     Responsável
                   </dt>
-                  <dd>{draft.responsible || 'Não definido'}</dd>
+                  <dd>{responsibleName}</dd>
                 </div>
                 <div>
                   <dt>

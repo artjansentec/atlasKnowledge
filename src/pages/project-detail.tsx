@@ -3,12 +3,9 @@ import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Dialog,
   DialogContent,
-  FormControl,
-  InputLabel,
   MenuItem,
-  Select,
-  type SelectChangeEvent,
 } from '@mui/material'
+import { AtlasSelect, atlasMenuItemSx } from '../components/atlas-select'
 import {
   AlertTriangle,
   ArrowDown,
@@ -41,11 +38,28 @@ import {
 import { confirmDanger, showToast } from '../components/app-alerts'
 import { MarkdownView } from '../components/markdown-view'
 import { StatusBadge } from '../components/status-badge'
-import { canManageProject } from '../lib/auth'
+import { ApiError, fetchAuthenticatedBlob } from '../lib/api'
+import { useAuth } from '../lib/auth'
 import { formatDateBR } from '../lib/date'
 import {
+  buildSectionReorderItems,
+  createLesson,
+  createSection,
+  deleteAttachment,
+  deleteLesson,
+  deleteSection as deleteSectionApi,
+  getProjectBySlug,
+  listUsers,
+  reorderSections,
+  updateLesson,
+  updateProject,
+  updateSection,
+  uploadAttachment,
+  type UserListItem,
+} from '../lib/projects-api'
+import {
   flattenSections,
-  getProject,
+  getAttachmentFileType,
   lessonTypeLabels,
   lessonTypeOptions,
   type Project,
@@ -64,7 +78,6 @@ type CarouselDirection = 'previous' | 'next'
 type SectionOption = { id: string; title: string; depth: number }
 
 const projectTabs: Tab[] = ['doc', 'files', 'lessons', 'history']
-const responsibleOptions = ['Marina Alves', 'Rafael Costa', 'Bianca Souza', 'Lucas Lima', 'Camila Rocha', 'Pedro Nunes']
 const emptyLessonDraft = {
   type: 'success' as ProjectLessonType,
   title: '',
@@ -82,24 +95,6 @@ const lessonTypeIcons: Record<ProjectLessonType, typeof Lightbulb> = {
 function getTabFromSearchParams(searchParams: URLSearchParams): Tab {
   const tab = searchParams.get('tab')
   return projectTabs.includes(tab as Tab) ? (tab as Tab) : 'doc'
-}
-
-function createSectionId() {
-  return `section-${Date.now()}`
-}
-
-function createLessonId() {
-  return `lesson-${Date.now()}`
-}
-
-function createAttachmentId() {
-  return `attachment-${Date.now()}`
-}
-
-function formatFileSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 function parseLessonTags(value: string) {
@@ -190,6 +185,18 @@ function deleteSection(sections: Section[], sectionId: string): Section[] {
     })
 }
 
+function updateSectionContent(sections: Section[], sectionId: string, content: string): Section[] {
+  return sections.map((section) => {
+    if (section.id === sectionId) return { ...section, content }
+    if (!section.children?.length) return section
+
+    return {
+      ...section,
+      children: updateSectionContent(section.children, sectionId, content),
+    }
+  })
+}
+
 function getSectionIds(section: Section): string[] {
   return [section.id, ...(section.children?.flatMap(getSectionIds) ?? [])]
 }
@@ -215,20 +222,23 @@ function getAttachmentCitationLocations(
 
 function ProjectDetailPage() {
   const { slug } = useParams()
+  const { canManageProject } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = getTabFromSearchParams(searchParams)
   const requestedSectionId = searchParams.get('section')
-  const project = getProject(slug)
+  const [project, setProject] = useState<Project | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [forbidden, setForbidden] = useState(false)
   const [tabAnimationStep, setTabAnimationStep] = useState(0)
-  const [projectDetails, setProjectDetails] = useState<Project | undefined>(() => project)
-  const [sections, setSections] = useState<Section[]>(() => project?.sections ?? [])
-  const [attachments, setAttachments] = useState<ProjectAttachment[]>(() => project?.attachments ?? [])
-  const [lessons, setLessons] = useState<ProjectLesson[]>(() => project?.lessons ?? [])
-  const [activeId, setActiveId] = useState(project?.sections[0]?.id ?? '')
+  const [projectDetails, setProjectDetails] = useState<Project | null>(null)
+  const [sections, setSections] = useState<Section[]>([])
+  const [attachments, setAttachments] = useState<ProjectAttachment[]>([])
+  const [lessons, setLessons] = useState<ProjectLesson[]>([])
+  const [activeId, setActiveId] = useState('')
   const [fullscreen, setFullscreen] = useState(true)
   const [fullscreenClosing, setFullscreenClosing] = useState(false)
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(project?.sections[0]?.content ?? '')
+  const [draft, setDraft] = useState('')
   const [carouselDirection, setCarouselDirection] = useState<CarouselDirection>('next')
   const [sectionCreationMode, setSectionCreationMode] = useState<SectionCreationMode | null>(null)
   const [sectionTitleDraft, setSectionTitleDraft] = useState('')
@@ -249,6 +259,50 @@ function ProjectDetailPage() {
   const previewCitationLocations = previewAttachment
     ? getAttachmentCitationLocations(previewAttachment, flatSections, savedDrafts)
     : []
+
+  useEffect(() => {
+    if (!slug) return
+
+    let cancelled = false
+
+    async function loadProject() {
+      setLoading(true)
+      setForbidden(false)
+
+      try {
+        const data = await getProjectBySlug(slug!)
+        if (cancelled) return
+
+        setProject(data)
+        setProjectDetails(data)
+        setSections(data.sections)
+        setAttachments(data.attachments)
+        setLessons(data.lessons)
+        const firstSection = data.sections[0]
+        setActiveId(firstSection?.id ?? '')
+        setDraft(firstSection?.content ?? '')
+        setEditing(false)
+        setFullscreen(true)
+        setFullscreenClosing(false)
+        setCarouselDirection('next')
+        setSectionCreationMode(null)
+        setSectionTitleDraft('')
+        setSavedDrafts({})
+        setPreviewAttachment(null)
+      } catch (err) {
+        if (cancelled) return
+        if (err instanceof ApiError && err.status === 403) setForbidden(true)
+        else setProject(null)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    void loadProject()
+    return () => {
+      cancelled = true
+    }
+  }, [slug])
 
   useEffect(() => {
     if (displayedProject) document.title = `${displayedProject.name} · Atlas Knowledge`
@@ -272,25 +326,6 @@ function ProjectDetailPage() {
   }, [])
 
   useEffect(() => {
-    if (!project) return
-
-    setProjectDetails(project)
-    setSections(project.sections)
-    setAttachments(project.attachments)
-    setLessons(project.lessons)
-    const firstSection = project.sections[0]
-    setActiveId(firstSection?.id ?? '')
-    setDraft(firstSection?.content ?? '')
-    setEditing(false)
-    setFullscreen(true)
-    setFullscreenClosing(false)
-    setCarouselDirection('next')
-    setSectionCreationMode(null)
-    setSectionTitleDraft('')
-    setPreviewAttachment(null)
-  }, [project])
-
-  useEffect(() => {
     if (!project || tab !== 'doc' || !requestedSectionId) return
 
     const targetSection = flattenSections(project.sections).find((item) => item.section.id === requestedSectionId)?.section
@@ -307,6 +342,23 @@ function ProjectDetailPage() {
     setFullscreenClosing(false)
     setCarouselDirection('next')
   }, [project, requestedSectionId, savedDrafts, tab])
+
+  if (loading) {
+    return (
+      <div className="project-detail-page" style={{ padding: '2rem' }}>
+        Carregando projeto...
+      </div>
+    )
+  }
+
+  if (forbidden) {
+    return (
+      <div className="project-detail-page" style={{ padding: '2rem' }}>
+        <p>Você não tem permissão para acessar este projeto.</p>
+        <Link to="/projects">Voltar para projetos</Link>
+      </div>
+    )
+  }
 
   if (!project) return <Navigate to="/projects" replace />
 
@@ -325,41 +377,51 @@ function ProjectDetailPage() {
   }
 
   function addSection() {
-    if (!canManage) return
+    if (!canManage || !slug) return
     if (!sectionCreationMode) return
 
     const title = sectionTitleDraft.trim() || (sectionCreationMode === 'section' ? 'Nova seção' : 'Nova subseção')
-    const newSection: Section = {
-      id: createSectionId(),
-      title,
-      content: `# ${title}\n\n`,
-    }
+    const content = `# ${title}\n\n`
+    const parentId = sectionCreationMode === 'subsection' && activeId ? activeId : undefined
 
-    setSections((current) =>
-      sectionCreationMode === 'subsection' && activeId ? addSubsection(current, activeId, newSection) : [...current, newSection],
-    )
-    setActiveId(newSection.id)
-    setDraft(newSection.content)
-    setEditing(true)
-    cancelSectionCreation()
-    showToast(sectionCreationMode === 'section' ? 'Seção criada' : 'Subseção criada')
+    void (async () => {
+      try {
+        const created = await createSection(slug, { title, content, parentId })
+        setSections((current) =>
+          sectionCreationMode === 'subsection' && activeId
+            ? addSubsection(current, activeId, created)
+            : [...current, created],
+        )
+        setActiveId(created.id)
+        setDraft(created.content)
+        setEditing(true)
+        cancelSectionCreation()
+        showToast(sectionCreationMode === 'section' ? 'Seção criada' : 'Subseção criada')
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Erro ao criar seção', 'warning')
+      }
+    })()
   }
 
   function reorderSection(sectionId: string, direction: MoveDirection) {
-    if (!canManage) return
+    if (!canManage || !slug) return
 
-    setSections((current) => moveSection(current, sectionId, direction))
+    const nextSections = moveSection(sections, sectionId, direction)
+    setSections(nextSections)
+
+    void reorderSections(slug, buildSectionReorderItems(nextSections)).catch((err) => {
+      setSections(sections)
+      showToast(err instanceof ApiError ? err.message : 'Erro ao reordenar seções', 'warning')
+    })
   }
 
   function updateSectionTitle(sectionId: string, title: string) {
     if (!canManage) return
-
     setSections((current) => renameSection(current, sectionId, title))
   }
 
   async function removeActiveSection() {
-    if (!canManage) return
-    if (!active) return
+    if (!canManage || !active || !slug) return
     const confirmed = await confirmDanger({
       title: `Apagar "${active.title}"?`,
       text: 'Essa ação também remove todas as subseções e não poderá ser desfeita.',
@@ -368,22 +430,27 @@ function ProjectDetailPage() {
 
     if (!confirmed) return
 
-    const deletedIds = getSectionIds(active)
-    const nextSections = deleteSection(sections, active.id)
-    const nextActive = flattenSections(nextSections)[0]?.section
+    try {
+      await deleteSectionApi(slug, active.id)
+      const deletedIds = getSectionIds(active)
+      const nextSections = deleteSection(sections, active.id)
+      const nextActive = flattenSections(nextSections)[0]?.section
 
-    setSections(nextSections)
-    setSavedDrafts((current) =>
-      Object.fromEntries(Object.entries(current).filter(([sectionId]) => !deletedIds.includes(sectionId))),
-    )
-    setActiveId(nextActive?.id ?? '')
-    setDraft(nextActive ? (savedDrafts[nextActive.id] ?? nextActive.content) : '')
-    setEditing(false)
-    showToast('Seção apagada')
+      setSections(nextSections)
+      setSavedDrafts((current) =>
+        Object.fromEntries(Object.entries(current).filter(([sectionId]) => !deletedIds.includes(sectionId))),
+      )
+      setActiveId(nextActive?.id ?? '')
+      setDraft(nextActive ? (savedDrafts[nextActive.id] ?? nextActive.content) : '')
+      setEditing(false)
+      showToast('Seção apagada')
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erro ao apagar seção', 'warning')
+    }
   }
 
   async function removeAttachment(attachment: ProjectAttachment) {
-    if (!canManage) return
+    if (!canManage || !slug) return
 
     const confirmed = await confirmDanger({
       title: `Apagar "${attachment.name}"?`,
@@ -393,28 +460,31 @@ function ProjectDetailPage() {
 
     if (!confirmed) return
 
-    setAttachments((current) => current.filter((item) => item.id !== attachment.id))
-    showToast('Arquivo apagado')
+    try {
+      await deleteAttachment(slug, attachment.id)
+      setAttachments((current) => current.filter((item) => item.id !== attachment.id))
+      showToast('Arquivo apagado')
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erro ao apagar arquivo', 'warning')
+    }
   }
 
   function addAttachment(file: File) {
-    if (!canManage) return
+    if (!canManage || !slug) return
 
-    const extension = file.name.split('.').pop()?.toLowerCase() || 'file'
-    const attachment: ProjectAttachment = {
-      id: createAttachmentId(),
-      name: file.name,
-      type: extension,
-      size: formatFileSize(file.size),
-      uploadedAt: new Date().toISOString().slice(0, 10),
-    }
-
-    setAttachments((current) => [attachment, ...current])
-    showToast('Arquivo enviado')
+    void (async () => {
+      try {
+        const attachment = await uploadAttachment(slug, file)
+        setAttachments((current) => [attachment, ...current])
+        showToast('Arquivo enviado')
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Erro ao enviar arquivo', 'warning')
+      }
+    })()
   }
 
   async function removeLesson(lesson: ProjectLesson) {
-    if (!canManage) return
+    if (!canManage || !slug) return
 
     const confirmed = await confirmDanger({
       title: `Apagar "${lesson.title}"?`,
@@ -424,39 +494,64 @@ function ProjectDetailPage() {
 
     if (!confirmed) return
 
-    setLessons((current) => current.filter((item) => item.id !== lesson.id))
-    showToast('Lição apagada')
+    try {
+      await deleteLesson(slug, lesson.id)
+      setLessons((current) => current.filter((item) => item.id !== lesson.id))
+      showToast('Lição apagada')
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erro ao apagar lição', 'warning')
+    }
   }
 
   function addLesson(lesson: Omit<ProjectLesson, 'id' | 'createdAt'>) {
-    if (!canManage) return
+    if (!canManage || !slug) return
 
-    setLessons((current) => [
-      {
-        id: createLessonId(),
-        createdAt: new Date().toISOString().slice(0, 10),
-        ...lesson,
-      },
-      ...current,
-    ])
-    showToast('Lição criada')
+    void (async () => {
+      try {
+        const created = await createLesson(slug, lesson)
+        setLessons((current) => [created, ...current])
+        showToast('Lição criada')
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Erro ao criar lição', 'warning')
+      }
+    })()
   }
 
-  function updateLesson(lessonId: string, lesson: Omit<ProjectLesson, 'id' | 'createdAt'>) {
-    if (!canManage) return
+  function updateLessonItem(lessonId: string, lesson: Omit<ProjectLesson, 'id' | 'createdAt'>) {
+    if (!canManage || !slug) return
 
-    setLessons((current) => current.map((item) => (item.id === lessonId ? { ...item, ...lesson } : item)))
-    showToast('Lição atualizada')
+    void (async () => {
+      try {
+        const updated = await updateLesson(slug, lessonId, lesson)
+        setLessons((current) => current.map((item) => (item.id === lessonId ? updated : item)))
+        showToast('Lição atualizada')
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Erro ao atualizar lição', 'warning')
+      }
+    })()
   }
 
-  function updateProjectInfo(nextProject: Project) {
-    if (!canManage) return
+  function updateProjectInfo(nextProject: Project, responsibleUserId?: string) {
+    if (!canManage || !slug) return
 
-    setProjectDetails({
-      ...nextProject,
-      updatedAt: new Date().toISOString().slice(0, 10),
-    })
-    showToast('Informações do projeto atualizadas')
+    void (async () => {
+      try {
+        const updated = await updateProject(slug, {
+          name: nextProject.name,
+          description: nextProject.description,
+          status: nextProject.status,
+          responsibleUserId,
+          client: nextProject.client,
+          tags: nextProject.tags,
+          tech: nextProject.tech,
+        })
+        setProject(updated)
+        setProjectDetails(updated)
+        showToast('Informações do projeto atualizadas')
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Erro ao atualizar projeto', 'warning')
+      }
+    })()
   }
 
   function selectSection(id: string) {
@@ -483,11 +578,20 @@ function ProjectDetailPage() {
   }
 
   function saveDraft() {
-    if (!canManage) return
-    if (!active) return
-    setSavedDrafts((current) => ({ ...current, [active.id]: draft }))
-    setEditing(false)
-    showToast('Alterações salvas')
+    if (!canManage || !active || !slug) return
+
+    void (async () => {
+      try {
+        const title = active.title
+        await updateSection(slug, active.id, { title, content: draft })
+        setSections((current) => updateSectionContent(current, active.id, draft))
+        setSavedDrafts((current) => ({ ...current, [active.id]: draft }))
+        setEditing(false)
+        showToast('Alterações salvas')
+      } catch (err) {
+        showToast(err instanceof ApiError ? err.message : 'Erro ao salvar', 'warning')
+      }
+    })()
   }
 
   function cancelEditing() {
@@ -632,7 +736,7 @@ function ProjectDetailPage() {
               canManage={canManage}
               onAddLesson={addLesson}
               onDeleteLesson={removeLesson}
-              onUpdateLesson={updateLesson}
+              onUpdateLesson={updateLessonItem}
             />
           )}
           {tab === 'history' && <HistoryView project={currentProject} />}
@@ -718,7 +822,7 @@ function DocView({
   previousSectionTitle: string | undefined
   onSectionTitleDraftChange: (value: string) => void
   onStartSectionCreation: (mode: SectionCreationMode) => void
-  onUpdateProject: (project: Project) => void
+  onUpdateProject: (project: Project, responsibleUserId?: string) => void
   nextSectionTitle: string | undefined
   setEditing: (value: boolean) => void
 }) {
@@ -969,92 +1073,29 @@ function SectionSwitcher({
 }) {
   if (sections.length <= 1) return null
 
-  function handleChange(event: SelectChangeEvent) {
-    onSelect(event.target.value)
-  }
-
   return (
-    <FormControl
+    <AtlasSelect
       className="project-section-switcher"
-      size="small"
-      sx={{
-        flex: '0 0 auto',
-        maxWidth: 'min(34vw, 320px)',
-        minWidth: 220,
-        '& .MuiInputLabel-root': {
-          color: 'var(--muted-foreground)',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-        },
-        '& .MuiInputLabel-root.Mui-focused': {
-          color: 'var(--primary)',
-        },
-        '& .MuiOutlinedInput-root': {
-          borderRadius: '10px',
-          color: 'var(--text-h)',
-          backgroundColor: 'var(--surface)',
-          font: '700 13px/1.2 var(--font-sans)',
-        },
-        '& .MuiOutlinedInput-root fieldset': {
-          borderColor: 'var(--border)',
-        },
-        '& .MuiOutlinedInput-root:hover fieldset': {
-          borderColor: 'rgba(56, 173, 72, 0.32)',
-        },
-        '& .MuiOutlinedInput-root.Mui-focused fieldset': {
-          borderColor: 'var(--primary)',
-          borderWidth: 1,
-        },
-        '& .MuiSelect-icon': {
-          color: 'var(--muted-foreground)',
-        },
-      }}
+      label="Seção"
+      labelMode="floating"
+      value={activeId}
+      onChange={onSelect}
+      fullWidth={false}
     >
-      <InputLabel id="project-section-switcher-label">Seção</InputLabel>
-      <Select
-        label="Seção"
-        labelId="project-section-switcher-label"
-        value={activeId}
-        onChange={handleChange}
-        MenuProps={{
-          slotProps: {
-            paper: {
-              sx: {
-                border: '1px solid var(--border)',
-                borderRadius: '12px',
-                backgroundColor: 'var(--surface)',
-                boxShadow: 'var(--shadow)',
-                mt: 0.5,
-              },
-            },
-          },
-        }}
-      >
-        {sections.map((section) => (
-          <MenuItem
-            key={section.id}
-            value={section.id}
-            sx={{
-              color: 'var(--foreground)',
-              font: '600 13px/1.35 var(--font-sans)',
-              pl: `${section.depth * 18 + 16}px`,
-              '&.Mui-selected': {
-                color: 'var(--primary)',
-                backgroundColor: 'var(--accent-bg)',
-              },
-              '&.Mui-selected:hover, &:hover': {
-                backgroundColor: 'rgba(56, 173, 72, 0.08)',
-              },
-            }}
-          >
-            {section.title}
-          </MenuItem>
-        ))}
-      </Select>
-    </FormControl>
+      {sections.map((section) => (
+        <MenuItem
+          key={section.id}
+          value={section.id}
+          sx={{
+            ...atlasMenuItemSx,
+            pl: `${section.depth * 18 + 12}px`,
+            font: '600 13px/1.35 var(--font-sans)',
+          }}
+        >
+          {section.title}
+        </MenuItem>
+      ))}
+    </AtlasSelect>
   )
 }
 
@@ -1229,30 +1270,48 @@ function ProjectReaderFiles({
   attachments: ProjectAttachment[]
   onOpenAttachment: (attachment: ProjectAttachment) => void
 }) {
+  const [open, setOpen] = useState(false)
+
   if (!attachments.length) return null
 
   return (
-    <aside className="project-reader-files" aria-label="Arquivos anexados ao projeto">
-      <div className="project-reader-files__title">
+    <aside
+      className={open ? 'project-reader-files project-reader-files--open' : 'project-reader-files'}
+      aria-label="Arquivos anexados ao projeto"
+    >
+      <button
+        type="button"
+        className="project-reader-files__title"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
         <Paperclip size={14} aria-hidden="true" />
-        Arquivos
+        Arquivos ({attachments.length})
+        <ChevronRight className="project-files-toggle__chevron" size={14} aria-hidden="true" />
+      </button>
+      <div
+        className={open ? 'project-files-collapse project-files-collapse--open' : 'project-files-collapse'}
+        aria-hidden={!open}
+      >
+        <div className="project-files-collapse__inner">
+          <ul>
+            {attachments.map((attachment) => (
+              <li key={attachment.id}>
+                <button type="button" onClick={() => onOpenAttachment(attachment)} tabIndex={open ? 0 : -1}>
+                  <FileIcon type={attachment.type} />
+                  <div>
+                    <strong>{attachment.name}</strong>
+                    <span>
+                      {getAttachmentFileType(attachment).toUpperCase()} · {attachment.size}
+                    </span>
+                    <small>Enviado em {formatDateBR(attachment.uploadedAt)}</small>
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
-      <ul>
-        {attachments.map((attachment) => (
-          <li key={attachment.id}>
-            <button type="button" onClick={() => onOpenAttachment(attachment)}>
-              <FileIcon type={attachment.type} />
-              <div>
-                <strong>{attachment.name}</strong>
-                <span>
-                  {attachment.type.toUpperCase()} · {attachment.size}
-                </span>
-                <small>Enviado em {formatDateBR(attachment.uploadedAt)}</small>
-              </div>
-            </button>
-          </li>
-        ))}
-      </ul>
     </aside>
   )
 }
@@ -1264,8 +1323,9 @@ function ProjectInfo({
 }: {
   project: Project
   canManage: boolean
-  onSave: (project: Project) => void
+  onSave: (project: Project, responsibleUserId?: string) => void
 }) {
+  const [users, setUsers] = useState<UserListItem[]>([])
   const [editing, setEditing] = useState(false)
   const [tagDraft, setTagDraft] = useState('')
   const [techDraft, setTechDraft] = useState('')
@@ -1273,25 +1333,34 @@ function ProjectInfo({
     name: project.name,
     description: project.description,
     status: project.status,
-    responsible: project.responsible,
+    responsibleUserId: '',
     client: project.client ?? '',
     tags: project.tags.join(', '),
     tech: project.tech?.join(', ') ?? '',
   })
 
   useEffect(() => {
+    void listUsers().then((userList) => {
+      setUsers(userList)
+      const match = userList.find((user) => user.name === project.responsible)
+      setDraft((current) => ({ ...current, responsibleUserId: match?.id ?? '' }))
+    })
+  }, [project.responsible])
+
+  useEffect(() => {
+    const match = users.find((user) => user.name === project.responsible)
     setDraft({
       name: project.name,
       description: project.description,
       status: project.status,
-      responsible: project.responsible,
+      responsibleUserId: match?.id ?? '',
       client: project.client ?? '',
       tags: project.tags.join(', '),
       tech: project.tech?.join(', ') ?? '',
     })
     setTagDraft('')
     setTechDraft('')
-  }, [project])
+  }, [project, users])
 
   useEffect(() => {
     if (!canManage) setEditing(false)
@@ -1303,11 +1372,12 @@ function ProjectInfo({
 
   function cancelEditing() {
     setEditing(false)
+    const match = users.find((user) => user.name === project.responsible)
     setDraft({
       name: project.name,
       description: project.description,
       status: project.status,
-      responsible: project.responsible,
+      responsibleUserId: match?.id ?? '',
       client: project.client ?? '',
       tags: project.tags.join(', '),
       tech: project.tech?.join(', ') ?? '',
@@ -1371,28 +1441,30 @@ function ProjectInfo({
 
     const name = draft.name.trim()
     const description = draft.description.trim()
-    const responsible = draft.responsible.trim()
+    const responsibleUser = users.find((user) => user.id === draft.responsibleUserId)
 
-    if (!name || !description || !responsible) {
+    if (!name || !description || !responsibleUser) {
       showToast('Preencha nome, descrição e responsável', 'warning')
       return
     }
 
-    onSave({
-      ...project,
-      name,
-      description,
-      status: draft.status,
-      responsible,
-      client: draft.client.trim() || undefined,
-      tags: parseList(draft.tags, true),
-      tech: parseList(draft.tech),
-    })
+    onSave(
+      {
+        ...project,
+        name,
+        description,
+        status: draft.status,
+        responsible: responsibleUser.name,
+        client: draft.client.trim() || undefined,
+        tags: parseList(draft.tags, true),
+        tech: parseList(draft.tech),
+      },
+      responsibleUser.id,
+    )
     setEditing(false)
   }
 
   if (editing && canManage) {
-    const responsibleSelectOptions = Array.from(new Set([draft.responsible, ...responsibleOptions].filter(Boolean)))
     const tags = parseList(draft.tags, true)
     const tech = parseList(draft.tech)
 
@@ -1410,33 +1482,30 @@ function ProjectInfo({
           </label>
           <label className="project-info-form__select-field project-info-form__select-field--status">
             Status
-            <FormControl className="project-info-form__mui-field" size="small" fullWidth>
-              <Select
-                displayEmpty
-                value={draft.status}
-                onChange={(event: SelectChangeEvent<ProjectStatus>) => updateDraft('status', event.target.value as ProjectStatus)}
-              >
-                <MenuItem value="active">Ativo</MenuItem>
-                <MenuItem value="paused">Pausado</MenuItem>
-                <MenuItem value="done">Concluído</MenuItem>
-              </Select>
-            </FormControl>
+            <AtlasSelect
+              className="project-info-form__mui-field"
+              value={draft.status}
+              onChange={(value) => updateDraft('status', value as ProjectStatus)}
+              options={[
+                { value: 'active', label: 'Ativo' },
+                { value: 'paused', label: 'Pausado' },
+                { value: 'done', label: 'Concluído' },
+              ]}
+            />
           </label>
           <label className="project-info-form__select-field">
             Responsável
-            <FormControl className="project-info-form__mui-field" size="small" fullWidth>
-              <Select
-                displayEmpty
-                value={draft.responsible}
-                onChange={(event: SelectChangeEvent) => updateDraft('responsible', event.target.value)}
-              >
-                {responsibleSelectOptions.map((responsible) => (
-                  <MenuItem key={responsible} value={responsible}>
-                    {responsible}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <AtlasSelect
+              className="project-info-form__mui-field"
+              value={draft.responsibleUserId}
+              onChange={(value) => updateDraft('responsibleUserId', value)}
+              displayEmpty
+              placeholder="Selecione um responsável"
+              options={users.map((user) => ({
+                value: user.id,
+                label: user.name,
+              }))}
+            />
           </label>
           <label>
             Cliente
@@ -1584,26 +1653,51 @@ function RelatedFiles({
   attachments: ProjectAttachment[]
   onOpenAttachment: (attachment: ProjectAttachment) => void
 }) {
+  const [open, setOpen] = useState(false)
+
   if (!attachments.length) return null
 
   return (
-    <div className="project-detail__card">
-      <div className="project-detail__panel-title">Arquivos</div>
-      <ul className="project-related-list">
-        {attachments.slice(0, 4).map((attachment) => (
-          <li key={attachment.id}>
-            <button type="button" className="project-related-list__button" onClick={() => onOpenAttachment(attachment)}>
-              <FileIcon type={attachment.type} />
-              <div>
-                <strong>{attachment.name}</strong>
-                <span>
-                  {attachment.type.toUpperCase()} · {attachment.size}
-                </span>
-              </div>
-            </button>
-          </li>
-        ))}
-      </ul>
+    <div className={open ? 'project-detail__card project-related-files--open' : 'project-detail__card'}>
+      <button
+        type="button"
+        className="project-detail__panel-title project-detail__panel-title--toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span>
+          <Paperclip size={15} aria-hidden="true" />
+          Arquivos ({attachments.length})
+        </span>
+        <ChevronRight className="project-files-toggle__chevron" size={14} aria-hidden="true" />
+      </button>
+      <div
+        className={open ? 'project-files-collapse project-files-collapse--open' : 'project-files-collapse'}
+        aria-hidden={!open}
+      >
+        <div className="project-files-collapse__inner">
+          <ul className="project-related-list">
+            {attachments.map((attachment) => (
+              <li key={attachment.id}>
+                <button
+                  type="button"
+                  className="project-related-list__button"
+                  tabIndex={open ? 0 : -1}
+                  onClick={() => onOpenAttachment(attachment)}
+                >
+                  <FileIcon type={attachment.type} />
+                  <div>
+                    <strong>{attachment.name}</strong>
+                    <span>
+                      {getAttachmentFileType(attachment).toUpperCase()} · {attachment.size}
+                    </span>
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1754,7 +1848,7 @@ function AttachmentPreviewDialog({
             <span className="eyebrow eyebrow--accent">// prévia do arquivo</span>
             <h2>{attachment.name}</h2>
             <p>
-              {attachment.type.toUpperCase()} · {attachment.size} · Enviado em {formatDateBR(attachment.uploadedAt)}
+              {getAttachmentFileType(attachment).toUpperCase()} · {attachment.size} · Enviado em {formatDateBR(attachment.uploadedAt)}
             </p>
           </div>
           <button type="button" className="project-attachment-dialog__close" aria-label="Fechar prévia" onClick={onClose}>
@@ -1775,149 +1869,154 @@ function AttachmentPreviewBody({
   attachment: ProjectAttachment
   citationLocations: SectionOption[]
 }) {
-  if (attachment.type === 'pdf') {
-    if (attachment.url) {
-      return (
-        <div className="project-file-preview project-file-preview--pdf-embed">
-          <iframe src={attachment.url} title={`Prévia de ${attachment.name}`} />
-          <div className="project-file-preview__backend-meta">
-            <div className="project-file-preview__summary">
-              <strong>Documento disponível para consulta</strong>
-            </div>
-            {citationLocations.length > 0 && (
-              <dl className="project-file-preview__technical-details">
-                <div>
-                  <dt>Citado em</dt>
-                  <dd>
-                    <ul>
-                      {citationLocations.map((location) => (
-                        <li key={location.id}>{`${'  '.repeat(location.depth)}${location.title}`}</li>
-                      ))}
-                    </ul>
-                  </dd>
-                </div>
-              </dl>
-            )}
-            <a href={attachment.url} target="_blank" rel="noreferrer">
-              Abrir PDF em nova aba
-            </a>
-          </div>
-        </div>
-      )
+  const [blobUrl, setBlobUrl] = useState<string | null>(null)
+  const [textContent, setTextContent] = useState<string | null>(null)
+  const [loadingFile, setLoadingFile] = useState(false)
+  const [fileError, setFileError] = useState('')
+
+  const fileType = getAttachmentFileType(attachment)
+  const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(fileType)
+  const isText = ['md', 'txt', 'json', 'csv'].includes(fileType) || attachment.mimeType?.startsWith('text/')
+
+  useEffect(() => {
+    if (!attachment.url) {
+      setBlobUrl(null)
+      setTextContent(null)
+      return
     }
 
+    let cancelled = false
+    let objectUrl: string | null = null
+
+    async function loadFile() {
+      setLoadingFile(true)
+      setFileError('')
+      setBlobUrl(null)
+      setTextContent(null)
+
+      try {
+        const blob = await fetchAuthenticatedBlob(attachment.url!)
+        if (cancelled) return
+
+        objectUrl = URL.createObjectURL(blob)
+        setBlobUrl(objectUrl)
+
+        if (isText) {
+          const text = await blob.text()
+          if (!cancelled) setTextContent(text)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setFileError(err instanceof ApiError ? err.message : 'Não foi possível carregar o arquivo')
+        }
+      } finally {
+        if (!cancelled) setLoadingFile(false)
+      }
+    }
+
+    void loadFile()
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [attachment.url, attachment.id, isText])
+
+  if (!attachment.url) {
     return (
-      <div className="project-file-preview project-file-preview--pdf">
-        <div className="project-file-preview__page">
-          <div className="project-file-preview__page-header">Mapa informacional</div>
-          <h3>Resumo executivo</h3>
-          <p>Estrutura recomendada para organizar documentação, decisões e aprendizados por projeto.</p>
-          <div className="project-file-preview__lines">
-            <span />
-            <span />
-            <span />
-            <span />
-          </div>
-          <div className="project-file-preview__callout">Governança · Busca · Reutilização</div>
+      <div className="project-file-preview project-file-preview--unavailable">
+        <strong>Arquivo indisponível</strong>
+        <p>Este anexo não possui URL de download no servidor.</p>
+      </div>
+    )
+  }
+
+  if (loadingFile) {
+    return <div className="project-file-preview">Carregando arquivo...</div>
+  }
+
+  if (fileError) {
+    return <div className="project-file-preview">{fileError}</div>
+  }
+
+  if (!blobUrl) return null
+
+  const citationBlock =
+    citationLocations.length > 0 ? (
+      <dl className="project-file-preview__technical-details">
+        <div>
+          <dt>Citado em</dt>
+          <dd>
+            <ul>
+              {citationLocations.map((location) => (
+                <li key={location.id}>{`${'  '.repeat(location.depth)}${location.title}`}</li>
+              ))}
+            </ul>
+          </dd>
         </div>
-        <aside>
-          <strong>PDF de exemplo</strong>
-          <span>2 páginas detectadas</span>
-          <span>Texto pesquisável disponível</span>
-          <span>Clique nas citações para voltar a esta prévia.</span>
-        </aside>
+      </dl>
+    ) : null
+
+  const downloadLink = (
+    <a href={blobUrl} download={attachment.name} target="_blank" rel="noreferrer">
+      Baixar {attachment.name}
+    </a>
+  )
+
+  if (fileType === 'pdf') {
+    return (
+      <div className="project-file-preview project-file-preview--pdf-embed">
+        <iframe src={blobUrl} title={`Prévia de ${attachment.name}`} />
+        <div className="project-file-preview__backend-meta">
+          <div className="project-file-preview__summary">
+            <strong>{attachment.name}</strong>
+            <span>
+              {fileType.toUpperCase()} · {attachment.size}
+            </span>
+          </div>
+          {citationBlock}
+          {downloadLink}
+        </div>
       </div>
     )
   }
 
-  if (attachment.type === 'md') {
-    return (
-      <pre className="project-file-preview project-file-preview--code">
-        <code>{`# Decisões de arquitetura
-
-## ADR-001: Markdown como base
-Status: aprovado
-
-Motivo:
-- Fácil revisão em PRs
-- Portável para outras ferramentas
-- Bom equilíbrio entre estrutura e velocidade
-
-## ADR-002: Citações de arquivos
-As citações [[arquivo:decisoes-arquitetura.md]] devem abrir uma prévia contextual.`}</code>
-      </pre>
-    )
-  }
-
-  if (attachment.type === 'xlsx') {
-    return (
-      <div className="project-file-preview project-file-preview--sheet">
-        <table>
-          <thead>
-            <tr>
-              <th>Perfil</th>
-              <th>Contratos</th>
-              <th>Tickets</th>
-              <th>Indicadores</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Administrador</td>
-              <td>Editar</td>
-              <td>Editar</td>
-              <td>Ver</td>
-            </tr>
-            <tr>
-              <td>Financeiro</td>
-              <td>Ver</td>
-              <td>Sem acesso</td>
-              <td>Ver</td>
-            </tr>
-            <tr>
-              <td>Suporte</td>
-              <td>Ver</td>
-              <td>Editar</td>
-              <td>Ver</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    )
-  }
-
-  if (attachment.type === 'png' || attachment.type === 'jpg') {
+  if (isImage) {
     return (
       <div className="project-file-preview project-file-preview--image">
-        <div className="project-file-preview__mock-window">
-          <div />
-          <div />
-          <div />
+        <img src={blobUrl} alt={attachment.name} />
+        <div className="project-file-preview__backend-meta">
+          <strong>{attachment.name}</strong>
+          {citationBlock}
+          {downloadLink}
         </div>
-        <div className="project-file-preview__flow">
-          <span>Editor</span>
-          <ChevronRight size={18} aria-hidden="true" />
-          <span>Preview</span>
-          <ChevronRight size={18} aria-hidden="true" />
-          <span>Anexos</span>
+      </div>
+    )
+  }
+
+  if (isText && textContent !== null) {
+    return (
+      <div className="project-file-preview project-file-preview--code">
+        <pre>
+          <code>{textContent}</code>
+        </pre>
+        <div className="project-file-preview__backend-meta">
+          {citationBlock}
+          {downloadLink}
         </div>
-        <p>{attachment.name}</p>
       </div>
     )
   }
 
   return (
-    <article className="project-file-preview project-file-preview--doc">
-      <h3>Contrato de API</h3>
+    <div className="project-file-preview project-file-preview--unavailable">
+      <strong>{attachment.name}</strong>
       <p>
-        Documento de exemplo com endpoints, responsabilidades e regras de compatibilidade entre sistemas.
+        Prévia não disponível para arquivos {fileType.toUpperCase()}. Use o botão abaixo para
+        baixar.
       </p>
-      <div className="project-file-preview__lines">
-        <span />
-        <span />
-        <span />
-      </div>
-    </article>
+      {citationBlock}
+      {downloadLink}
+    </div>
   )
 }
 
@@ -1987,11 +2086,11 @@ function FilesView({
                 aria-pressed={selectedAttachment?.id === attachment.id}
                 onClick={() => selectAttachment(attachment)}
               >
-                <FileIcon type={attachment.type} />
+                <FileIcon type={getAttachmentFileType(attachment)} />
                 <div>
                   <h3>{attachment.name}</h3>
                   <span>
-                    {attachment.type.toUpperCase()} · {attachment.size}
+                    {getAttachmentFileType(attachment).toUpperCase()} · {attachment.size}
                   </span>
                   <p>Enviado em {formatDateBR(attachment.uploadedAt)}</p>
                 </div>
@@ -2022,12 +2121,12 @@ function FilesView({
       )}
       {selectedAttachment && (
         <aside className="project-attachment-viewer" aria-label="Detalhes do anexo selecionado">
-          <FileIcon type={selectedAttachment.type} />
+          <FileIcon type={getAttachmentFileType(selectedAttachment)} />
           <div>
             <span className="eyebrow eyebrow--accent">// anexo selecionado</span>
             <h3>{selectedAttachment.name}</h3>
             <p>
-              Arquivo {selectedAttachment.type.toUpperCase()} com {selectedAttachment.size}, enviado em{' '}
+              Arquivo {getAttachmentFileType(selectedAttachment).toUpperCase()} com {selectedAttachment.size ?? '—'}, enviado em{' '}
               {formatDateBR(selectedAttachment.uploadedAt)}.
             </p>
             <code>{`[[arquivo:${selectedAttachment.name}]]`}</code>
@@ -2135,37 +2234,21 @@ function LessonsView({
         <form className="project-lesson-form" onSubmit={submitLesson}>
           <label className="project-lesson-form__select-field">
             Tipo da lição
-            <FormControl className="project-lesson-form__mui-field" size="small" fullWidth>
-              <Select
-                value={draft.type}
-                onChange={(event: SelectChangeEvent<ProjectLessonType>) =>
-                  updateDraft('type', event.target.value as ProjectLessonType)
-                }
-                renderValue={(value) => {
-                  const selectedOption = lessonTypeOptions.find((option) => option.value === value)
-                  return selectedOption ? <LessonTypeSelectOption option={selectedOption} compact /> : null
-                }}
-                MenuProps={{
-                  slotProps: {
-                    paper: {
-                      sx: {
-                        border: '1px solid var(--border)',
-                        borderRadius: '12px',
-                        backgroundColor: 'var(--surface)',
-                        boxShadow: 'var(--shadow)',
-                        mt: 0.5,
-                      },
-                    },
-                  },
-                }}
-              >
-                {lessonTypeOptions.map((option) => (
-                  <MenuItem key={option.value} value={option.value}>
-                    <LessonTypeSelectOption option={option} />
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+            <AtlasSelect
+              className="project-lesson-form__mui-field"
+              value={draft.type}
+              onChange={(value) => updateDraft('type', value as ProjectLessonType)}
+              renderValue={(value) => {
+                const selectedOption = lessonTypeOptions.find((option) => option.value === value)
+                return selectedOption ? <LessonTypeSelectOption option={selectedOption} compact /> : null
+              }}
+            >
+              {lessonTypeOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value} sx={atlasMenuItemSx}>
+                  <LessonTypeSelectOption option={option} />
+                </MenuItem>
+              ))}
+            </AtlasSelect>
             <span className="project-lesson-form__hint">
               {lessonTypeOptions.find((option) => option.value === draft.type)?.description}
             </span>

@@ -1,0 +1,147 @@
+.dashboard-period-picker-popper {
+  z-index: 1400;
+}
+
+.dashboard-period .dashboard-period-picker-field {
+  width: 118px;
+  flex: 0 0 118px;
+}
+
+.dashboard-period .dashboard-period-picker-field .MuiPickersInputBase-root {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  padding-inline: 8px 2px;
+  border-radius: 8px;
+  color: var(--text-h);
+  background: rgba(255, 255, 255, 0.72);
+  font: 500 13px/1.2 var(--font-sans);
+  cursor: pointer;
+}
+
+.dashboard-period .dashboard-period-picker-field .MuiPickersOutlinedInput-notchedOutline {
+  border-color: var(--border);
+}
+
+.dashboard-period .dashboard-period-picker-field .MuiPickersInputBase-root:hover .MuiPickersOutlinedInput-notchedOutline {
+  border-color: rgba(56, 173, 72, 0.42);
+}
+
+.dashboard-period .dashboard-period-picker-field .MuiPickersInputBase-root.Mui-focused .MuiPickersOutlinedInput-notchedOutline {
+  border-color: var(--primary);
+  border-width: 1px;
+}
+
+.dashboard-period .dashboard-period-picker-field .MuiPickersSectionList-root {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  font: inherit;
+}
+
+.dashboard-period .dashboard-period-picker-field .MuiPickersSectionList-sectionContent,
+.dashboard-period .dashboard-period-picker-field .MuiPickersInputBase-sectionContent {
+  font: inherit;
+  letter-spacing: -0.01em;
+}
+
+.dashboard-period .dashboard-period-picker-field .MuiInputAdornment-root {
+  margin: 0;
+  max-height: none;
+}
+
+.dashboard-period .dashboard-period-picker-button {
+  width: 26px;
+  height: 26px;
+  padding: 4px;
+  margin-right: 2px;
+  color: var(--primary);
+}
+
+.dashboard-period .dashboard-period-picker-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.dashboard-period-picker-paper {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 18px 40px rgba(8, 6, 13, 0.14);
+}
+
+.dashboard-period-picker-layout {
+  padding: 8px 10px 12px;
+}
+
+.dashboard-period-picker-header {
+  padding-inline: 6px;
+}
+
+.dashboard-period-picker-header .MuiPickersCalendarHeader-label {
+  color: var(--text-h);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-transform: capitalize;
+}
+
+.dashboard-period-picker-header .MuiIconButton-root {
+  color: var(--muted-foreground);
+}
+
+.dashboard-period-picker-header .MuiIconButton-root:hover {
+  color: var(--primary);
+  background: rgba(56, 173, 72, 0.08);
+}
+
+.dashboard-period-picker-day {
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+.dashboard-period-picker-day.MuiPickersDay-root.Mui-selected {
+  color: #fff;
+  background: var(--primary);
+  font-weight: 700;
+}
+
+.dashboard-period-picker-day.MuiPickersDay-root.Mui-selected:hover,
+.dashboard-period-picker-day.MuiPickersDay-root.Mui-selected:focus {
+  background: var(--primary);
+}
+
+.dashboard-period-picker-day.MuiPickersDay-root:not(.Mui-selected):hover {
+  background: rgba(56, 173, 72, 0.1);
+}
+
+.dashboard-period-picker-day.MuiPickersDay-today {
+  border-color: rgba(56, 173, 72, 0.45);
+}
+
+.dashboard-period-picker-popper .MuiDayCalendar-weekDayLabel {
+  color: var(--muted-foreground);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dashboard-period-picker-popper .MuiYearCalendar-root,
+.dashboard-period-picker-popper .MuiMonthCalendar-root {
+  width: 280px;
+}
+
+.dashboard-period-picker-popper .MuiPickersYear-yearButton.Mui-selected,
+.dashboard-period-picker-popper .MuiPickersMonth-monthButton.Mui-selected {
+  color: #fff;
+  background: var(--primary);
+}
+
+.dashboard-period-picker-popper .MuiPickersYear-yearButton:hover,
+.dashboard-period-picker-popper .MuiPickersMonth-monthButton:hover {
+  background: rgba(56, 173, 72, 0.1);
+}

@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowUpRight,
-  BookOpen,
   Calendar,
   CheckCircle2,
   Clock3,
@@ -12,15 +11,17 @@ import {
   UserRound,
 } from 'lucide-react'
 import { StatusBadge } from '../components/status-badge'
-import {
-  flattenSections,
-  getProjectUpdates,
-  projects,
-  statusLabels,
-  type ProjectStatus,
-} from '../lib/projects'
-import { isCurrentUserAdmin } from '../lib/auth'
+import { useAuth } from '../lib/auth'
 import { formatDateBR } from '../lib/date'
+import {
+  getDashboardSummary,
+  listProjectUpdates,
+  listProjects,
+  type DashboardSummary,
+  type ProjectListItem,
+  type ProjectUpdate,
+} from '../lib/projects-api'
+import { statusLabels, type ProjectStatus } from '../lib/projects'
 import './css/projects.css'
 
 type Filter = 'all' | ProjectStatus
@@ -33,9 +34,14 @@ const filterLabels: Record<Filter, string> = {
 }
 
 function ProjectsPage() {
+  const { isCurrentUserAdmin } = useAuth()
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [createdProject, setCreatedProject] = useState('')
+  const [projects, setProjects] = useState<ProjectListItem[]>([])
+  const [summary, setSummary] = useState<DashboardSummary | null>(null)
+  const [updates, setUpdates] = useState<ProjectUpdate[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     document.title = 'Projetos · Atlas Knowledge'
@@ -47,31 +53,42 @@ function ProjectsPage() {
     }
   }, [])
 
-  const visibleProjects = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase()
+  useEffect(() => {
+    let cancelled = false
 
-    return projects
-      .filter((project) => filter === 'all' || project.status === filter)
-      .filter((project) => {
-        if (!normalizedQuery) return true
+    async function load() {
+      setLoading(true)
+      try {
+        const status = filter === 'all' ? undefined : filter
+        const [projectList, summaryData, updateList] = await Promise.all([
+          listProjects({ status, q: query.trim() || undefined }),
+          getDashboardSummary(),
+          listProjectUpdates(),
+        ])
+        if (cancelled) return
+        setProjects(projectList)
+        setSummary(summaryData)
+        setUpdates(updateList.slice(0, 5))
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
 
-        return [
-          project.name,
-          project.description,
-          project.responsible,
-          ...flattenSections(project.sections).map(({ section }) => section.title),
-        ]
-          .join(' ')
-          .toLowerCase()
-          .includes(normalizedQuery)
-      })
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+    const timeout = window.setTimeout(() => void load(), query ? 300 : 0)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timeout)
+    }
   }, [filter, query])
 
-  const activeCount = projects.filter((project) => project.status === 'active').length
-  const doneCount = projects.filter((project) => project.status === 'done').length
-  const lessonsCount = projects.reduce((total, project) => total + project.lessons.length, 0)
-  const updates = getProjectUpdates().slice(0, 5)
+  const activeCount = useMemo(
+    () => projects.filter((project) => project.status === 'active').length,
+    [projects],
+  )
+  const doneCount = useMemo(
+    () => projects.filter((project) => project.status === 'done').length,
+    [projects],
+  )
   const canCreateProjects = isCurrentUserAdmin()
 
   return (
@@ -94,16 +111,15 @@ function ProjectsPage() {
 
       {createdProject && (
         <section className="projects-feedback" role="status">
-          Projeto <strong>{createdProject}</strong> criado localmente. Integre a persistência para
-          exibir na lista compartilhada.
+          Projeto <strong>{createdProject}</strong> criado com sucesso.
         </section>
       )}
 
       <section className="projects-overview" aria-label="Resumo dos projetos">
-        <MetricCard icon={FolderKanban} label="Total" value={projects.length} hint="projetos na wiki" />
+        <MetricCard icon={FolderKanban} label="Total" value={summary?.projectCount ?? projects.length} hint="projetos na wiki" />
         <MetricCard icon={Clock3} label="Ativos" value={activeCount} hint="em acompanhamento" />
         <MetricCard icon={CheckCircle2} label="Concluídos" value={doneCount} hint="com histórico preservado" />
-        <MetricCard icon={Lightbulb} label="Lições" value={lessonsCount} hint="aprendizados registrados" />
+        <MetricCard icon={Lightbulb} label="Lições" value={summary?.lessonCount ?? 0} hint="aprendizados registrados" />
       </section>
 
       <section className="projects-layout">
@@ -132,7 +148,12 @@ function ProjectsPage() {
             </div>
           </div>
 
-          {visibleProjects.length === 0 ? (
+          {loading ? (
+            <div className="projects-empty">
+              <FolderKanban size={34} aria-hidden="true" />
+              <strong>Carregando projetos...</strong>
+            </div>
+          ) : projects.length === 0 ? (
             <div className="projects-empty">
               <FolderKanban size={34} aria-hidden="true" />
               <strong>Nenhum projeto encontrado</strong>
@@ -140,7 +161,7 @@ function ProjectsPage() {
             </div>
           ) : (
             <div className="projects-grid">
-              {visibleProjects.map((project) => (
+              {projects.map((project) => (
                 <Link key={project.id} to={`/projects/${project.slug}`} className="project-card">
                   <div className="project-card__top">
                     <span className="project-card__avatar">
@@ -170,16 +191,11 @@ function ProjectsPage() {
                     </span>
                   </div>
 
-                  <div className="project-card__footer">
-                    <span>
-                      <BookOpen size={14} aria-hidden="true" />
-                      {flattenSections(project.sections).length} seções
-                    </span>
-                    <span>
-                      <Lightbulb size={14} aria-hidden="true" />
-                      {project.lessons.length} lições
-                    </span>
-                  </div>
+                  {project.tags.length > 0 && (
+                    <div className="project-card__footer">
+                      <span>{project.tags.slice(0, 3).map((tag) => `#${tag}`).join(' ')}</span>
+                    </div>
+                  )}
                 </Link>
               ))}
             </div>
@@ -194,12 +210,12 @@ function ProjectsPage() {
 
           <ul className="projects-timeline">
             {updates.map((update) => (
-              <li key={`${update.project.id}-${update.id}`}>
-                <Link to={`/projects/${update.project.slug}`}>
+              <li key={update.id}>
+                <Link to={`/projects/${update.projectSlug}`}>
                   <span>{formatDateBR(update.at)}</span>
                   <strong>{update.action}</strong>
                   <small>
-                    {update.project.name} · {update.target}
+                    {update.projectName} · {update.target}
                   </small>
                 </Link>
               </li>

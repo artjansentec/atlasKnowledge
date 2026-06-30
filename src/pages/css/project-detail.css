@@ -252,6 +252,107 @@
   text-transform: uppercase;
 }
 
+.project-detail__panel-title--toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    border-color 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.project-detail__panel-title--toggle:hover {
+  background: rgba(56, 173, 72, 0.05);
+}
+
+.project-detail__panel-title--toggle > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.project-related-files--open .project-detail__panel-title--toggle {
+  border-bottom-color: var(--border);
+}
+
+.project-files-toggle__chevron {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--muted-foreground);
+  transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.project-related-files--open .project-files-toggle__chevron,
+.project-reader-files--open .project-files-toggle__chevron {
+  transform: rotate(90deg);
+}
+
+.project-files-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.project-files-collapse--open {
+  grid-template-rows: 1fr;
+}
+
+.project-files-collapse__inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.project-files-collapse__inner > ul {
+  opacity: 0;
+  transform: translateY(-8px);
+  transition:
+    opacity 0.24s ease,
+    transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.project-files-collapse--open .project-files-collapse__inner > ul {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.project-files-collapse--open .project-files-collapse__inner > ul > li {
+  animation: project-files-item-enter 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.project-files-collapse--open .project-files-collapse__inner > ul > li:nth-child(2) {
+  animation-delay: 0.04s;
+}
+
+.project-files-collapse--open .project-files-collapse__inner > ul > li:nth-child(3) {
+  animation-delay: 0.08s;
+}
+
+.project-files-collapse--open .project-files-collapse__inner > ul > li:nth-child(4) {
+  animation-delay: 0.12s;
+}
+
+.project-files-collapse--open .project-files-collapse__inner > ul > li:nth-child(n + 5) {
+  animation-delay: 0.16s;
+}
+
+@keyframes project-files-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .project-detail__panel-title button {
   display: grid;
   width: 26px;
@@ -813,28 +914,8 @@
   text-transform: uppercase;
 }
 
-.project-info-form__mui-field .MuiOutlinedInput-root {
-  border-radius: 10px;
-  color: var(--foreground);
-  background: var(--surface);
-  font: 500 14px/1.45 var(--font-sans);
-}
-
-.project-info-form__mui-field .MuiOutlinedInput-root fieldset {
-  border-color: var(--border);
-}
-
-.project-info-form__mui-field .MuiOutlinedInput-root:hover fieldset {
-  border-color: rgba(56, 173, 72, 0.32);
-}
-
-.project-info-form__mui-field .MuiOutlinedInput-root.Mui-focused fieldset {
-  border-color: var(--primary);
-  border-width: 1px;
-}
-
-.project-info-form__mui-field .MuiSelect-icon {
-  color: var(--muted-foreground);
+.project-info-form__mui-field {
+  margin-top: 2px;
 }
 
 .project-info-form__select-field--status {
@@ -1686,28 +1767,8 @@
   font: 500 14px/1.45 var(--font-sans);
 }
 
-.project-lesson-form__mui-field .MuiOutlinedInput-root {
-  border-radius: 11px;
-  color: var(--foreground);
-  background: var(--surface);
-  font: 500 14px/1.45 var(--font-sans);
-}
-
-.project-lesson-form__mui-field .MuiOutlinedInput-root fieldset {
-  border-color: var(--border);
-}
-
-.project-lesson-form__mui-field .MuiOutlinedInput-root:hover fieldset {
-  border-color: rgba(56, 173, 72, 0.32);
-}
-
-.project-lesson-form__mui-field .MuiOutlinedInput-root.Mui-focused fieldset {
-  border-color: var(--primary);
-  border-width: 1px;
-}
-
-.project-lesson-form__mui-field .MuiSelect-icon {
-  color: var(--muted-foreground);
+.project-lesson-form__mui-field {
+  margin-top: 2px;
 }
 
 .project-lesson-type-option {
@@ -2063,6 +2124,17 @@
   gap: 14px;
 }
 
+.project-section-switcher {
+  flex: 0 0 auto;
+  min-width: 220px;
+  max-width: min(34vw, 320px);
+}
+
+.project-section-switcher .MuiOutlinedInput-root {
+  color: var(--text-h);
+  font-weight: 700;
+}
+
 .project-reader__title {
   min-width: 0;
   color: var(--muted-foreground);
@@ -2217,19 +2289,50 @@
   background: color-mix(in oklch, var(--surface) 92%, transparent);
   box-shadow: var(--shadow-soft);
   backdrop-filter: blur(12px);
+  transition:
+    box-shadow 0.32s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.project-reader-files--open {
+  box-shadow:
+    var(--shadow-soft),
+    0 14px 36px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
 }
 
 .project-reader-files__title {
   display: flex;
+  width: 100%;
   align-items: center;
   gap: 7px;
-  margin-bottom: 10px;
+  margin-bottom: 0;
+  border: 0;
+  padding: 0;
   color: var(--text-h);
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    color 0.18s ease,
+    margin-bottom 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.project-reader-files__title:hover {
+  color: var(--primary);
+}
+
+.project-reader-files--open .project-reader-files__title {
+  margin-bottom: 10px;
+}
+
+.project-reader-files__title .project-files-toggle__chevron {
+  margin-left: auto;
 }
 
 .project-reader-files ul {
@@ -2321,6 +2424,8 @@
 .project-section-tree button:focus-visible,
 .project-section-pager__button:focus-visible,
 .project-lesson-guide__item:focus-visible,
+.project-detail__panel-title--toggle:focus-visible,
+.project-reader-files__title:focus-visible,
 .project-related-list__button:focus-visible,
 .project-reader-files li button:focus-visible,
 .project-file-card__main:focus-visible,
@@ -2446,7 +2551,8 @@
   .project-reader--closing,
   .project-section-tree__row--active,
   .project-document-card__content--next,
-  .project-document-card__content--previous {
+  .project-document-card__content--previous,
+  .project-files-collapse--open .project-files-collapse__inner > ul > li {
     animation: none;
   }
 
@@ -2456,7 +2562,13 @@
   .project-section-tree__dot::before,
   .project-section-pager__button,
   .project-file-card,
-  .project-reader-files li button {
+  .project-reader-files li button,
+  .project-files-collapse,
+  .project-files-collapse__inner > ul,
+  .project-files-toggle__chevron,
+  .project-detail__panel-title--toggle,
+  .project-reader-files,
+  .project-reader-files__title {
     transition: none;
   }
 }

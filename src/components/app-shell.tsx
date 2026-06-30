@@ -10,7 +10,7 @@ import {
   Sparkles,
   UserCircle,
 } from 'lucide-react'
-import { currentUser, isCurrentUserAdmin } from '../lib/auth'
+import { useAuth } from '../lib/auth'
 import './app-shell.css'
 
 const navItems = [
@@ -20,13 +20,6 @@ const navItems = [
   { to: '/search', label: 'Buscar', icon: Search },
 ] as const
 
-const currentUserInitials = currentUser.name
-  .split(' ')
-  .map((word) => word[0])
-  .slice(0, 2)
-  .join('')
-  .toUpperCase()
-
 function isNavActive(pathname: string, to: string) {
   if (to === '/') return pathname === '/'
   return pathname.startsWith(to)
@@ -35,10 +28,20 @@ function isNavActive(pathname: string, to: string) {
 export function AppShell({ children }: { children?: ReactNode }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
+  const { user, logout, isCurrentUserAdmin } = useAuth()
   const [q, setQ] = useState('')
+
+  const currentUserInitials = (user?.name ?? '')
+    .split(' ')
+    .map((word) => word[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+
   const currentUserRoleLabel = isCurrentUserAdmin() ? 'Admin logado' : 'Usuário logado'
 
-  function logout() {
+  async function handleLogout() {
+    await logout()
     navigate('/login')
   }
 
@@ -85,7 +88,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
               {currentUserInitials}
             </div>
             <div>
-              <strong>{currentUser.name}</strong>
+              <strong>{user?.name}</strong>
               <span>
                 <UserCircle size={12} aria-hidden="true" />
                 {currentUserRoleLabel}
@@ -93,7 +96,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
             </div>
           </div>
 
-          <button type="button" className="app-shell__logout-button" onClick={logout}>
+          <button type="button" className="app-shell__logout-button" onClick={() => void handleLogout()}>
             <LogOut size={16} aria-hidden="true" />
             Sair
           </button>
