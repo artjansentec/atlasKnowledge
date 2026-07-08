@@ -10,7 +10,7 @@ import {
 import { apiRequest, setAccessToken, setUnauthorizedHandler } from './api'
 import type { Project } from './projects'
 
-export type UserRole = 'admin' | 'user'
+export type UserRole = 'admin' | 'consultor' | 'desenvolvedor'
 
 export type AuthUser = {
   id: string
@@ -19,13 +19,27 @@ export type AuthUser = {
   role: UserRole
 }
 
+// Normaliza roles legados (ex.: 'user') para os perfis atuais.
+function normalizeRole(role: string | null | undefined): UserRole {
+  if (role === 'admin') return 'admin'
+  if (role === 'desenvolvedor') return 'desenvolvedor'
+  return 'consultor'
+}
+
+function normalizeUser(user: AuthUser): AuthUser {
+  return { ...user, role: normalizeRole(user.role) }
+}
+
 type AuthContextValue = {
   user: AuthUser | null
   loading: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   isCurrentUserAdmin: () => boolean
+  isDeveloper: () => boolean
+  canViewDev: () => boolean
   canManageProject: (project: Project) => boolean
+  canManageDevProject: (project: Project) => boolean
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -42,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const restoreSession = useCallback(async () => {
     try {
       const me = await apiRequest<AuthUser>('/auth/me')
-      setUser(me)
+      setUser(normalizeUser(me))
     } catch {
       clearSession()
     } finally {
@@ -68,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
 
     setAccessToken(data.accessToken)
-    setUser(data.user)
+    setUser(normalizeUser(data.user))
   }, [])
 
   const logout = useCallback(async () => {
@@ -83,8 +97,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isCurrentUserAdmin = useCallback(() => user?.role === 'admin', [user])
 
+  const isDeveloper = useCallback(() => user?.role === 'desenvolvedor', [user])
+
+  const canViewDev = useCallback(() => isCurrentUserAdmin() || isDeveloper(), [isCurrentUserAdmin, isDeveloper])
+
   const canManageProject = useCallback(
     (project: Project) => isCurrentUserAdmin() || project.responsible === user?.name,
+    [isCurrentUserAdmin, user],
+  )
+
+  const canManageDevProject = useCallback(
+    (project: Project) => {
+      if (isCurrentUserAdmin()) return true
+      if (!user) return false
+      const responsibles = project.devResponsibles ?? []
+      const responsibleIds = project.devResponsibleIds ?? []
+      return responsibles.includes(user.name) || responsibleIds.includes(user.id)
+    },
     [isCurrentUserAdmin, user],
   )
 
@@ -95,9 +124,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       logout,
       isCurrentUserAdmin,
+      isDeveloper,
+      canViewDev,
       canManageProject,
+      canManageDevProject,
     }),
-    [user, loading, login, logout, isCurrentUserAdmin, canManageProject],
+    [
+      user,
+      loading,
+      login,
+      logout,
+      isCurrentUserAdmin,
+      isDeveloper,
+      canViewDev,
+      canManageProject,
+      canManageDevProject,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

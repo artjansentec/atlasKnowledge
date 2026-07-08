@@ -1,5 +1,12 @@
 import { apiRequest } from './api'
-import { normalizeAttachment, type Project, type ProjectLesson, type ProjectStatus, type Section } from './projects'
+import {
+  normalizeAttachment,
+  type Project,
+  type ProjectLesson,
+  type ProjectStatus,
+  type ProjectStatusMeta,
+  type Section,
+} from './projects'
 
 export type UserListItem = {
   id: string
@@ -69,6 +76,7 @@ export type CreateProjectPayload = {
   description: string
   status?: ProjectStatus
   responsibleUserId: string
+  devResponsibleUserIds?: string[]
   client?: string
   tags: string[]
   tech: string[]
@@ -81,6 +89,7 @@ export type UpdateProjectPayload = Partial<{
   description: string
   status: ProjectStatus
   responsibleUserId: string
+  devResponsibleUserIds: string[]
   client: string
   tags: string[]
   tech: string[]
@@ -94,6 +103,10 @@ export type SectionReorderItem = {
 
 export async function listUsers() {
   return apiRequest<UserListItem[]>('/users')
+}
+
+export async function listProjectStatuses() {
+  return apiRequest<ProjectStatusMeta[]>('/project-statuses')
 }
 
 function normalizeDashboardUpdate(
@@ -208,22 +221,39 @@ export async function listProjects(filters?: {
   return apiRequest<ProjectListItem[]>(query ? `/projects?${query}` : '/projects')
 }
 
+export function normalizeProject(raw: Project): Project {
+  return {
+    ...raw,
+    devResponsibles: raw.devResponsibles ?? [],
+    devResponsibleIds: raw.devResponsibleIds ?? [],
+    sections: raw.sections ?? [],
+    devSections: raw.devSections ?? [],
+    attachments: raw.attachments ?? [],
+    devAttachments: raw.devAttachments ?? [],
+    lessons: raw.lessons ?? [],
+    history: raw.history ?? [],
+  }
+}
+
 export async function getProjectBySlug(slug: string) {
-  return apiRequest<Project>(`/projects/${slug}`)
+  const project = await apiRequest<Project>(`/projects/${slug}`)
+  return normalizeProject(project)
 }
 
 export async function createProject(payload: CreateProjectPayload) {
-  return apiRequest<Project>('/projects', {
+  const project = await apiRequest<Project>('/projects', {
     method: 'POST',
     body: payload,
   })
+  return normalizeProject(project)
 }
 
 export async function updateProject(slug: string, payload: UpdateProjectPayload) {
-  return apiRequest<Project>(`/projects/${slug}`, {
+  const project = await apiRequest<Project>(`/projects/${slug}`, {
     method: 'PATCH',
     body: payload,
   })
+  return normalizeProject(project)
 }
 
 export async function deleteProject(slug: string) {
@@ -264,6 +294,38 @@ export async function deleteSection(slug: string, sectionId: string) {
 
 export async function reorderSections(slug: string, items: SectionReorderItem[]) {
   return apiRequest<void>(`/projects/${slug}/sections/reorder`, {
+    method: 'PUT',
+    body: { items },
+  })
+}
+
+export async function createDevSection(
+  slug: string,
+  payload: { title: string; content?: string; parentId?: string },
+) {
+  return apiRequest<Section>(`/projects/${slug}/dev-sections`, {
+    method: 'POST',
+    body: payload,
+  })
+}
+
+export async function updateDevSection(
+  slug: string,
+  sectionId: string,
+  payload: { title?: string; content?: string },
+) {
+  return apiRequest<Section>(`/projects/${slug}/dev-sections/${sectionId}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+}
+
+export async function deleteDevSection(slug: string, sectionId: string) {
+  return apiRequest<void>(`/projects/${slug}/dev-sections/${sectionId}`, { method: 'DELETE' })
+}
+
+export async function reorderDevSections(slug: string, items: SectionReorderItem[]) {
+  return apiRequest<void>(`/projects/${slug}/dev-sections/reorder`, {
     method: 'PUT',
     body: { items },
   })
@@ -319,6 +381,33 @@ export async function uploadAttachment(slug: string, file: File) {
 
 export async function deleteAttachment(slug: string, attachmentId: string) {
   return apiRequest<void>(`/projects/${slug}/attachments/${attachmentId}`, { method: 'DELETE' })
+}
+
+export async function uploadDevAttachment(slug: string, file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const created = await apiRequest<{ id: string; name: string; fileId?: string }>(
+    `/projects/${slug}/dev-attachments`,
+    {
+      method: 'POST',
+      body: formData,
+    },
+  )
+
+  try {
+    const project = await getProjectBySlug(slug)
+    const attachment = project.devAttachments.find((item) => item.id === created.id)
+    if (attachment) return attachment
+  } catch {
+    // fallback abaixo
+  }
+
+  return normalizeAttachment({ ...created, fileId: created.fileId }, file)
+}
+
+export async function deleteDevAttachment(slug: string, attachmentId: string) {
+  return apiRequest<void>(`/projects/${slug}/dev-attachments/${attachmentId}`, { method: 'DELETE' })
 }
 
 export function buildSectionReorderItems(sections: Section[], parentId: string | null = null): SectionReorderItem[] {

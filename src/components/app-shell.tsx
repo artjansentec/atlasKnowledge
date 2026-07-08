@@ -28,7 +28,7 @@ function isNavActive(pathname: string, to: string) {
 export function AppShell({ children }: { children?: ReactNode }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const { user, logout, isCurrentUserAdmin } = useAuth()
+  const { user, logout } = useAuth()
   const [q, setQ] = useState('')
 
   const currentUserInitials = (user?.name ?? '')
@@ -38,7 +38,12 @@ export function AppShell({ children }: { children?: ReactNode }) {
     .join('')
     .toUpperCase()
 
-  const currentUserRoleLabel = isCurrentUserAdmin() ? 'Admin logado' : 'Usuário logado'
+  const roleLabels: Record<string, string> = {
+    admin: 'Admin logado',
+    consultor: 'Consultor logado',
+    desenvolvedor: 'Desenvolvedor logado',
+  }
+  const currentUserRoleLabel = user ? (roleLabels[user.role] ?? 'Usuário logado') : 'Usuário logado'
 
   async function handleLogout() {
     await logout()

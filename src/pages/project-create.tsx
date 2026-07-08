@@ -15,9 +15,11 @@ import { ApiError } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { MarkdownView } from '../components/markdown-view'
 import { AtlasSelect } from '../components/atlas-select'
+import { DevResponsibleSelect } from '../components/dev-responsible-select'
 import { showToast } from '../components/app-alerts'
 import { createProject, listUsers, type UserListItem } from '../lib/projects-api'
-import { statusLabels, type ProjectStatus } from '../lib/projects'
+import { type ProjectStatus } from '../lib/projects'
+import { useProjectStatuses } from '../lib/project-status'
 import './css/project-create.css'
 
 type NewProjectDraft = {
@@ -50,9 +52,11 @@ const initialDraft: NewProjectDraft = {
 function ProjectCreatePage() {
   const navigate = useNavigate()
   const { isCurrentUserAdmin } = useAuth()
+  const { statuses, getStatusMeta } = useProjectStatuses()
   const [draft, setDraft] = useState(initialDraft)
   const [slugTouched, setSlugTouched] = useState(false)
   const [users, setUsers] = useState<UserListItem[]>([])
+  const [devResponsibleUserIds, setDevResponsibleUserIds] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const canCreateProjects = isCurrentUserAdmin()
 
@@ -98,6 +102,7 @@ function ProjectCreatePage() {
         description: draft.description.trim(),
         status: draft.status,
         responsibleUserId: draft.responsibleUserId,
+        devResponsibleUserIds,
         client: draft.client.trim() || undefined,
         tags,
         tech,
@@ -160,7 +165,7 @@ function ProjectCreatePage() {
               </label>
 
               <label className="project-create__field">
-                <span>Slug</span>
+                <span>Identificador</span>
                 <input
                   value={draft.slug}
                   onChange={(event) => {
@@ -177,10 +182,7 @@ function ProjectCreatePage() {
                 <AtlasSelect
                   value={draft.status}
                   onChange={(value) => updateDraft('status', value as ProjectStatus)}
-                  options={(Object.keys(statusLabels) as ProjectStatus[]).map((status) => ({
-                    value: status,
-                    label: statusLabels[status],
-                  }))}
+                  options={statuses.map((status) => ({ value: status.code, label: status.label }))}
                 />
               </label>
 
@@ -209,6 +211,19 @@ function ProjectCreatePage() {
                   }))}
                 />
               </label>
+
+              <div className="project-create__field project-create__field--wide">
+                <span>Desenvolvedores responsáveis</span>
+                {users.length === 0 ? (
+                  <p className="project-create__dev-hint">Nenhum usuário disponível.</p>
+                ) : (
+                  <DevResponsibleSelect
+                    users={users}
+                    value={devResponsibleUserIds}
+                    onChange={setDevResponsibleUserIds}
+                  />
+                )}
+              </div>
 
               <label className="project-create__field">
                 <span>Cliente ou área</span>
@@ -292,8 +307,14 @@ function ProjectCreatePage() {
                     .join('')
                     .toUpperCase()}
                 </div>
-                <span className={`project-create__status project-create__status--${draft.status}`}>
-                  {statusLabels[draft.status]}
+                <span
+                  className="project-create__status"
+                  style={{
+                    color: getStatusMeta(draft.status).color,
+                    background: getStatusMeta(draft.status).background,
+                  }}
+                >
+                  {getStatusMeta(draft.status).label}
                 </span>
               </div>
 
@@ -311,7 +332,7 @@ function ProjectCreatePage() {
                 <div>
                   <dt>
                     <Calendar size={14} aria-hidden="true" />
-                    Slug
+                    Identificador
                   </dt>
                   <dd>{previewSlug}</dd>
                 </div>

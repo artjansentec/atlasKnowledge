@@ -234,21 +234,6 @@
   font-weight: 700;
 }
 
-.project-create__status--active {
-  color: var(--primary);
-  background: var(--accent-bg);
-}
-
-.project-create__status--paused {
-  color: #a16207;
-  background: rgba(234, 179, 8, 0.12);
-}
-
-.project-create__status--done {
-  color: #2563eb;
-  background: rgba(37, 99, 235, 0.1);
-}
-
 .project-create__preview-card h2 {
   margin: 0;
   color: var(--text-h);
@@ -385,4 +370,9 @@
     align-items: stretch;
     flex-direction: column-reverse;
   }
+}
+
+.project-create__dev-hint {
+  font-size: 13px;
+  color: var(--muted-foreground);
 }

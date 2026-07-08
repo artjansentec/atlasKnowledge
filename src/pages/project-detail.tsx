@@ -1,5 +1,5 @@
 import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react'
-import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Dialog,
   DialogContent,
@@ -11,9 +11,11 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  BookOpen,
   Calendar,
   ChevronDown,
   ChevronRight,
+  Code2,
   Eye,
   FileCode,
   FileImage,
@@ -22,6 +24,7 @@ import {
   FileType2,
   History,
   Lightbulb,
+  Link2,
   Maximize2,
   Minimize2,
   Paperclip,
@@ -36,25 +39,34 @@ import {
   X,
 } from 'lucide-react'
 import { confirmDanger, showToast } from '../components/app-alerts'
-import { MarkdownView } from '../components/markdown-view'
+import { DevResponsibleSelect } from '../components/dev-responsible-select'
+import { MarkdownView, type MarkdownSectionRef } from '../components/markdown-view'
 import { StatusBadge } from '../components/status-badge'
+import { useProjectStatuses } from '../lib/project-status'
 import { ApiError, fetchAuthenticatedBlob } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { formatDateBR } from '../lib/date'
 import {
   buildSectionReorderItems,
+  createDevSection,
   createLesson,
   createSection,
   deleteAttachment,
+  deleteDevAttachment,
+  deleteDevSection,
   deleteLesson,
+  deleteProject,
   deleteSection as deleteSectionApi,
   getProjectBySlug,
   listUsers,
+  reorderDevSections,
   reorderSections,
+  updateDevSection,
   updateLesson,
   updateProject,
   updateSection,
   uploadAttachment,
+  uploadDevAttachment,
   type UserListItem,
 } from '../lib/projects-api'
 import {
@@ -72,6 +84,7 @@ import {
 import './css/project-detail.css'
 
 type Tab = 'doc' | 'files' | 'lessons' | 'history'
+type ProjectView = 'project' | 'dev'
 type SectionCreationMode = 'section' | 'subsection'
 type MoveDirection = 'up' | 'down'
 type CarouselDirection = 'previous' | 'next'
@@ -95,6 +108,36 @@ const lessonTypeIcons: Record<ProjectLessonType, typeof Lightbulb> = {
 function getTabFromSearchParams(searchParams: URLSearchParams): Tab {
   const tab = searchParams.get('tab')
   return projectTabs.includes(tab as Tab) ? (tab as Tab) : 'doc'
+}
+
+function getViewFromSearchParams(searchParams: URLSearchParams, canViewDev: boolean): ProjectView {
+  const view = searchParams.get('view')
+  if (view === 'dev' && canViewDev) return 'dev'
+  return 'project'
+}
+
+// Cache local das dev-sections por projeto: mantem a aba Desenvolvimento funcional
+// (inclusive apos reload/remontagem) enquanto o backend ainda nao devolve `devSections`
+// no GET /projects/:slug. Quando o backend retornar os dados, eles tem prioridade.
+const DEV_SECTIONS_CACHE_PREFIX = 'atlas:devSections:'
+
+function readDevSectionsCache(slug: string): Section[] {
+  try {
+    const raw = localStorage.getItem(`${DEV_SECTIONS_CACHE_PREFIX}${slug}`)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as Section[]) : []
+  } catch {
+    return []
+  }
+}
+
+function writeDevSectionsCache(slug: string, sections: Section[]) {
+  try {
+    localStorage.setItem(`${DEV_SECTIONS_CACHE_PREFIX}${slug}`, JSON.stringify(sections))
+  } catch {
+    // Ignora falhas de storage (modo privado, cota, etc.).
+  }
 }
 
 function parseLessonTags(value: string) {
@@ -222,19 +265,26 @@ function getAttachmentCitationLocations(
 
 function ProjectDetailPage() {
   const { slug } = useParams()
-  const { canManageProject } = useAuth()
+  const navigate = useNavigate()
+  const { canManageProject, canManageDevProject, canViewDev, isCurrentUserAdmin } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = getTabFromSearchParams(searchParams)
   const requestedSectionId = searchParams.get('section')
+  const canSeeDev = canViewDev()
+  const view = getViewFromSearchParams(searchParams, canSeeDev)
+  const isDev = view === 'dev'
   const [project, setProject] = useState<Project | null>(null)
   const [loading, setLoading] = useState(true)
   const [forbidden, setForbidden] = useState(false)
   const [tabAnimationStep, setTabAnimationStep] = useState(0)
   const [projectDetails, setProjectDetails] = useState<Project | null>(null)
   const [sections, setSections] = useState<Section[]>([])
+  const [devSections, setDevSections] = useState<Section[]>([])
   const [attachments, setAttachments] = useState<ProjectAttachment[]>([])
+  const [devAttachments, setDevAttachments] = useState<ProjectAttachment[]>([])
   const [lessons, setLessons] = useState<ProjectLesson[]>([])
   const [activeId, setActiveId] = useState('')
+  const [devActiveId, setDevActiveId] = useState('')
   const [fullscreen, setFullscreen] = useState(true)
   const [fullscreenClosing, setFullscreenClosing] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -243,27 +293,50 @@ function ProjectDetailPage() {
   const [sectionCreationMode, setSectionCreationMode] = useState<SectionCreationMode | null>(null)
   const [sectionTitleDraft, setSectionTitleDraft] = useState('')
   const [savedDrafts, setSavedDrafts] = useState<Record<string, string>>({})
+  const [devSavedDrafts, setDevSavedDrafts] = useState<Record<string, string>>({})
   const [previewAttachment, setPreviewAttachment] = useState<ProjectAttachment | null>(null)
   const fullscreenCloseTimeoutRef = useRef<number | null>(null)
+  const devSectionsHydratedRef = useRef(false)
 
-  const flatSections = flattenSections(sections)
+  const activeSections = isDev ? devSections : sections
+  const setActiveSections = isDev ? setDevSections : setSections
+  const currentActiveId = isDev ? devActiveId : activeId
+  const setCurrentActiveId = isDev ? setDevActiveId : setActiveId
+  const currentSavedDrafts = isDev ? devSavedDrafts : savedDrafts
+  const setCurrentSavedDrafts = isDev ? setDevSavedDrafts : setSavedDrafts
+  const currentAttachments = isDev ? devAttachments : attachments
+
+  const flatSections = flattenSections(activeSections)
   const sectionOptions = flatSections.map(({ section, depth }) => ({ id: section.id, title: section.title, depth }))
-  const active = flatSections.find((item) => item.section.id === activeId)?.section ?? sections[0]
-  const activeContent = active ? (savedDrafts[active.id] ?? active.content) : ''
+  const active = flatSections.find((item) => item.section.id === currentActiveId)?.section ?? activeSections[0]
+  const activeContent = active ? (currentSavedDrafts[active.id] ?? active.content) : ''
   const activeIndex = flatSections.findIndex((item) => item.section.id === active?.id)
   const previousSection = activeIndex > 0 ? flatSections[activeIndex - 1]?.section : undefined
   const nextSection = activeIndex >= 0 ? flatSections[activeIndex + 1]?.section : undefined
   const displayedProject = projectDetails ?? project
-  const canManage = displayedProject ? canManageProject(displayedProject) : false
+  const canManageDoc = displayedProject ? canManageProject(displayedProject) : false
+  const canManageDev = displayedProject ? canManageDevProject(displayedProject) : false
+  const canManage = isDev ? canManageDev : canManageDoc
   const tab = requestedTab
+  // Secoes da documentacao do projeto disponiveis para citacao dentro da aba Desenvolvimento.
+  const projectSectionRefs: MarkdownSectionRef[] = flattenSections(sections).map(({ section }) => ({
+    id: section.id,
+    title: section.title,
+  }))
+  const projectSectionOptions: SectionOption[] = flattenSections(sections).map(({ section, depth }) => ({
+    id: section.id,
+    title: section.title,
+    depth,
+  }))
   const previewCitationLocations = previewAttachment
-    ? getAttachmentCitationLocations(previewAttachment, flatSections, savedDrafts)
+    ? getAttachmentCitationLocations(previewAttachment, flatSections, currentSavedDrafts)
     : []
 
   useEffect(() => {
     if (!slug) return
 
     let cancelled = false
+    devSectionsHydratedRef.current = false
 
     async function loadProject() {
       setLoading(true)
@@ -273,13 +346,24 @@ function ProjectDetailPage() {
         const data = await getProjectBySlug(slug!)
         if (cancelled) return
 
+        // Prioriza o que vier do backend; se ainda nao houver dev-sections,
+        // usa o cache local para nao perder o que foi criado nesta maquina.
+        const backendDevSections = data.devSections ?? []
+        const resolvedDevSections =
+          backendDevSections.length > 0 ? backendDevSections : readDevSectionsCache(slug!)
+
         setProject(data)
         setProjectDetails(data)
         setSections(data.sections)
+        setDevSections(resolvedDevSections)
         setAttachments(data.attachments)
+        setDevAttachments(data.devAttachments ?? [])
         setLessons(data.lessons)
         const firstSection = data.sections[0]
+        const firstDevSection = resolvedDevSections[0]
         setActiveId(firstSection?.id ?? '')
+        setDevActiveId(firstDevSection?.id ?? '')
+        devSectionsHydratedRef.current = true
         setDraft(firstSection?.content ?? '')
         setEditing(false)
         setFullscreen(true)
@@ -288,6 +372,7 @@ function ProjectDetailPage() {
         setSectionCreationMode(null)
         setSectionTitleDraft('')
         setSavedDrafts({})
+        setDevSavedDrafts({})
         setPreviewAttachment(null)
       } catch (err) {
         if (cancelled) return
@@ -303,6 +388,11 @@ function ProjectDetailPage() {
       cancelled = true
     }
   }, [slug])
+
+  useEffect(() => {
+    if (!slug || !devSectionsHydratedRef.current) return
+    writeDevSectionsCache(slug, devSections)
+  }, [slug, devSections])
 
   useEffect(() => {
     if (displayedProject) document.title = `${displayedProject.name} · Atlas Knowledge`
@@ -326,7 +416,7 @@ function ProjectDetailPage() {
   }, [])
 
   useEffect(() => {
-    if (!project || tab !== 'doc' || !requestedSectionId) return
+    if (!project || view !== 'project' || tab !== 'doc' || !requestedSectionId) return
 
     const targetSection = flattenSections(project.sections).find((item) => item.section.id === requestedSectionId)?.section
     if (!targetSection) return
@@ -341,7 +431,7 @@ function ProjectDetailPage() {
     setFullscreen(true)
     setFullscreenClosing(false)
     setCarouselDirection('next')
-  }, [project, requestedSectionId, savedDrafts, tab])
+  }, [project, requestedSectionId, savedDrafts, tab, view])
 
   if (loading) {
     return (
@@ -382,18 +472,21 @@ function ProjectDetailPage() {
 
     const title = sectionTitleDraft.trim() || (sectionCreationMode === 'section' ? 'Nova seção' : 'Nova subseção')
     const content = `# ${title}\n\n`
-    const parentId = sectionCreationMode === 'subsection' && activeId ? activeId : undefined
+    const parentId = sectionCreationMode === 'subsection' && currentActiveId ? currentActiveId : undefined
+    const create = isDev ? createDevSection : createSection
 
     void (async () => {
       try {
-        const created = await createSection(slug, { title, content, parentId })
-        setSections((current) =>
-          sectionCreationMode === 'subsection' && activeId
-            ? addSubsection(current, activeId, created)
+        const created = await create(slug, { title, content, parentId })
+        setActiveSections((current) =>
+          sectionCreationMode === 'subsection' && currentActiveId
+            ? addSubsection(current, currentActiveId, created)
             : [...current, created],
         )
-        setActiveId(created.id)
+        setCurrentActiveId(created.id)
         setDraft(created.content)
+        setFullscreen(false)
+        setFullscreenClosing(false)
         setEditing(true)
         cancelSectionCreation()
         showToast(sectionCreationMode === 'section' ? 'Seção criada' : 'Subseção criada')
@@ -406,18 +499,20 @@ function ProjectDetailPage() {
   function reorderSection(sectionId: string, direction: MoveDirection) {
     if (!canManage || !slug) return
 
-    const nextSections = moveSection(sections, sectionId, direction)
-    setSections(nextSections)
+    const previousSections = activeSections
+    const nextSections = moveSection(previousSections, sectionId, direction)
+    setActiveSections(nextSections)
 
-    void reorderSections(slug, buildSectionReorderItems(nextSections)).catch((err) => {
-      setSections(sections)
+    const reorder = isDev ? reorderDevSections : reorderSections
+    void reorder(slug, buildSectionReorderItems(nextSections)).catch((err) => {
+      setActiveSections(previousSections)
       showToast(err instanceof ApiError ? err.message : 'Erro ao reordenar seções', 'warning')
     })
   }
 
   function updateSectionTitle(sectionId: string, title: string) {
     if (!canManage) return
-    setSections((current) => renameSection(current, sectionId, title))
+    setActiveSections((current) => renameSection(current, sectionId, title))
   }
 
   async function removeActiveSection() {
@@ -430,22 +525,44 @@ function ProjectDetailPage() {
 
     if (!confirmed) return
 
+    const removeSectionApi = isDev ? deleteDevSection : deleteSectionApi
+
     try {
-      await deleteSectionApi(slug, active.id)
+      await removeSectionApi(slug, active.id)
       const deletedIds = getSectionIds(active)
-      const nextSections = deleteSection(sections, active.id)
+      const nextSections = deleteSection(activeSections, active.id)
       const nextActive = flattenSections(nextSections)[0]?.section
 
-      setSections(nextSections)
-      setSavedDrafts((current) =>
+      setActiveSections(nextSections)
+      setCurrentSavedDrafts((current) =>
         Object.fromEntries(Object.entries(current).filter(([sectionId]) => !deletedIds.includes(sectionId))),
       )
-      setActiveId(nextActive?.id ?? '')
-      setDraft(nextActive ? (savedDrafts[nextActive.id] ?? nextActive.content) : '')
+      setCurrentActiveId(nextActive?.id ?? '')
+      setDraft(nextActive ? (currentSavedDrafts[nextActive.id] ?? nextActive.content) : '')
       setEditing(false)
       showToast('Seção apagada')
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Erro ao apagar seção', 'warning')
+    }
+  }
+
+  async function handleDeleteProject() {
+    if (!isCurrentUserAdmin() || !slug) return
+
+    const confirmed = await confirmDanger({
+      title: `Apagar o projeto "${currentProject.name}"?`,
+      text: 'Toda a documentação, requisitos de desenvolvimento, arquivos e lições serão removidos. Essa ação não poderá ser desfeita.',
+      confirmButtonText: 'Apagar projeto',
+    })
+
+    if (!confirmed) return
+
+    try {
+      await deleteProject(slug)
+      showToast('Projeto apagado')
+      navigate('/projects')
+    } catch (err) {
+      showToast(err instanceof ApiError ? err.message : 'Erro ao apagar projeto', 'warning')
     }
   }
 
@@ -460,9 +577,12 @@ function ProjectDetailPage() {
 
     if (!confirmed) return
 
+    const remove = isDev ? deleteDevAttachment : deleteAttachment
+    const setter = isDev ? setDevAttachments : setAttachments
+
     try {
-      await deleteAttachment(slug, attachment.id)
-      setAttachments((current) => current.filter((item) => item.id !== attachment.id))
+      await remove(slug, attachment.id)
+      setter((current) => current.filter((item) => item.id !== attachment.id))
       showToast('Arquivo apagado')
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Erro ao apagar arquivo', 'warning')
@@ -472,10 +592,13 @@ function ProjectDetailPage() {
   function addAttachment(file: File) {
     if (!canManage || !slug) return
 
+    const upload = isDev ? uploadDevAttachment : uploadAttachment
+    const setter = isDev ? setDevAttachments : setAttachments
+
     void (async () => {
       try {
-        const attachment = await uploadAttachment(slug, file)
-        setAttachments((current) => [attachment, ...current])
+        const attachment = await upload(slug, file)
+        setter((current) => [attachment, ...current])
         showToast('Arquivo enviado')
       } catch (err) {
         showToast(err instanceof ApiError ? err.message : 'Erro ao enviar arquivo', 'warning')
@@ -531,8 +654,8 @@ function ProjectDetailPage() {
     })()
   }
 
-  function updateProjectInfo(nextProject: Project, responsibleUserId?: string) {
-    if (!canManage || !slug) return
+  function updateProjectInfo(nextProject: Project, responsibleUserId?: string, devResponsibleUserIds?: string[]) {
+    if (!canManageDoc || !slug) return
 
     void (async () => {
       try {
@@ -541,6 +664,7 @@ function ProjectDetailPage() {
           description: nextProject.description,
           status: nextProject.status,
           responsibleUserId,
+          devResponsibleUserIds,
           client: nextProject.client,
           tags: nextProject.tags,
           tech: nextProject.tech,
@@ -562,8 +686,8 @@ function ProjectDetailPage() {
       setCarouselDirection(nextIndex > activeIndex ? 'next' : 'previous')
     }
 
-    setActiveId(id)
-    setDraft(section ? (savedDrafts[section.id] ?? section.content) : '')
+    setCurrentActiveId(id)
+    setDraft(section ? (currentSavedDrafts[section.id] ?? section.content) : '')
     setEditing(false)
   }
 
@@ -572,20 +696,22 @@ function ProjectDetailPage() {
     if (!target) return
 
     setCarouselDirection(direction)
-    setActiveId(target.id)
-    setDraft(savedDrafts[target.id] ?? target.content)
+    setCurrentActiveId(target.id)
+    setDraft(currentSavedDrafts[target.id] ?? target.content)
     setEditing(false)
   }
 
   function saveDraft() {
     if (!canManage || !active || !slug) return
 
+    const update = isDev ? updateDevSection : updateSection
+
     void (async () => {
       try {
         const title = active.title
-        await updateSection(slug, active.id, { title, content: draft })
-        setSections((current) => updateSectionContent(current, active.id, draft))
-        setSavedDrafts((current) => ({ ...current, [active.id]: draft }))
+        await update(slug, active.id, { title, content: draft })
+        setActiveSections((current) => updateSectionContent(current, active.id, draft))
+        setCurrentSavedDrafts((current) => ({ ...current, [active.id]: draft }))
         setEditing(false)
         showToast('Alterações salvas')
       } catch (err) {
@@ -613,6 +739,52 @@ function ProjectDetailPage() {
     setTabAnimationStep((current) => current + 1)
   }
 
+  function changeView(nextView: ProjectView) {
+    if (nextView === view) return
+    if (nextView === 'dev' && !canSeeDev) return
+
+    const nextSearchParams = new URLSearchParams(searchParams)
+    if (nextView === 'dev') {
+      nextSearchParams.set('view', 'dev')
+    } else {
+      nextSearchParams.delete('view')
+    }
+    nextSearchParams.delete('tab')
+    nextSearchParams.delete('section')
+
+    const targetSections = nextView === 'dev' ? devSections : sections
+    const targetSavedDrafts = nextView === 'dev' ? devSavedDrafts : savedDrafts
+    const targetActiveId = nextView === 'dev' ? devActiveId : activeId
+    const targetSection =
+      flattenSections(targetSections).find((item) => item.section.id === targetActiveId)?.section ??
+      targetSections[0]
+
+    setEditing(false)
+    setSectionCreationMode(null)
+    setSectionTitleDraft('')
+    setCarouselDirection('next')
+    // A troca de abas preserva o modo atual (leitor/layout); o modo leitor so aparece
+    // na primeira abertura da tela ou quando o usuario ativa a tela cheia manualmente.
+    if (nextView === 'dev') {
+      setDevActiveId(targetSection?.id ?? '')
+    } else {
+      setActiveId(targetSection?.id ?? '')
+    }
+    setDraft(targetSection ? (targetSavedDrafts[targetSection.id] ?? targetSection.content) : '')
+
+    setSearchParams(nextSearchParams, { replace: true })
+    setTabAnimationStep((current) => current + 1)
+  }
+
+  function openProjectSection(sectionId: string) {
+    const nextSearchParams = new URLSearchParams(searchParams)
+    nextSearchParams.delete('view')
+    nextSearchParams.delete('tab')
+    nextSearchParams.set('section', sectionId)
+    setSearchParams(nextSearchParams, { replace: true })
+    setTabAnimationStep((current) => current + 1)
+  }
+
   function openFullscreen() {
     if (fullscreenCloseTimeoutRef.current) window.clearTimeout(fullscreenCloseTimeoutRef.current)
     setFullscreenClosing(false)
@@ -629,9 +801,59 @@ function ProjectDetailPage() {
     }, 220)
   }
 
+  const docView = (
+    <DocView
+      project={currentProject}
+      variant={isDev ? 'dev' : 'project'}
+      canSeeDev={canSeeDev}
+      onChangeView={changeView}
+      sections={activeSections}
+      activeId={currentActiveId}
+      active={active}
+      activeIndex={activeIndex}
+      activeContent={activeContent}
+      attachments={currentAttachments}
+      canManage={canManage}
+      canManageInfo={canManageDoc}
+      canDeleteProject={isCurrentUserAdmin()}
+      carouselDirection={carouselDirection}
+      draft={draft}
+      editing={editing}
+      fullscreen={fullscreen}
+      fullscreenClosing={fullscreenClosing}
+      lessons={lessons}
+      sectionCreationMode={sectionCreationMode}
+      sectionOptions={sectionOptions}
+      sectionTitleDraft={sectionTitleDraft}
+      citableSections={isDev ? projectSectionOptions : undefined}
+      sectionRefs={isDev ? projectSectionRefs : undefined}
+      onOpenSectionRef={isDev ? openProjectSection : undefined}
+      onAddSection={addSection}
+      onCancel={cancelEditing}
+      onCancelSectionCreation={cancelSectionCreation}
+      onCloseFullscreen={closeFullscreen}
+      onDeleteSection={removeActiveSection}
+      onDeleteProject={handleDeleteProject}
+      onDraftChange={setDraft}
+      onOpenAttachment={setPreviewAttachment}
+      onOpenFullscreen={openFullscreen}
+      onMoveSection={reorderSection}
+      onNavigateSection={navigateSection}
+      onRenameSection={updateSectionTitle}
+      onSave={saveDraft}
+      onSelect={selectSection}
+      previousSectionTitle={previousSection?.title}
+      onSectionTitleDraftChange={setSectionTitleDraft}
+      onStartSectionCreation={startSectionCreation}
+      onUpdateProject={updateProjectInfo}
+      nextSectionTitle={nextSection?.title}
+      setEditing={setEditing}
+    />
+  )
+
   return (
-    <div className="project-detail-page">
-      <div className="project-detail">
+    <div className="project-detail-page" data-project-view={view}>
+      <div className="project-detail" data-project-view={view}>
         <div className="project-detail__breadcrumb">
           <Link to="/projects">
             <ArrowLeft size={15} aria-hidden="true" />
@@ -651,96 +873,135 @@ function ProjectDetailPage() {
           </div>
         </header>
 
-        <nav className="project-detail__tabs" aria-label="Conteúdo do projeto">
-          {[
-            { id: 'doc' as const, label: 'Documentação', icon: FileText },
-            { id: 'files' as const, label: `Arquivos (${attachments.length})`, icon: Paperclip },
-            { id: 'lessons' as const, label: `Lições (${lessons.length})`, icon: Lightbulb },
-            { id: 'history' as const, label: 'Histórico', icon: History },
-          ].map((item) => {
-            const Icon = item.icon
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className={tab === item.id ? 'project-detail__tab project-detail__tab--active' : 'project-detail__tab'}
-                onClick={() => changeTab(item.id)}
-              >
-                <Icon size={16} aria-hidden="true" />
-                {item.label}
-              </button>
-            )
-          })}
-        </nav>
+        {canSeeDev && (
+          <div className="project-view-switch" role="tablist" aria-label="Trocar visualização do projeto">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!isDev}
+              className={`project-view-switch__item${!isDev ? ' project-view-switch__item--active' : ''}`}
+              onClick={() => changeView('project')}
+            >
+              <BookOpen size={16} aria-hidden="true" />
+              Projeto
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={isDev}
+              className={`project-view-switch__item project-view-switch__item--dev${isDev ? ' project-view-switch__item--active' : ''}`}
+              onClick={() => changeView('dev')}
+            >
+              <Code2 size={16} aria-hidden="true" />
+              Desenvolvimento
+            </button>
+          </div>
+        )}
 
-        <div
-          className="project-tab-transition"
-          data-active-tab={tab}
-          style={{
-            animationName:
-              tab === 'doc' ? 'project-tab-doc-enter' : tabAnimationStep % 2 === 0 ? 'project-tab-enter-a' : 'project-tab-enter-b',
-          }}
-        >
-          {tab === 'doc' && (
-            <DocView
-              project={currentProject}
-              sections={sections}
-              activeId={activeId}
-              active={active}
-              activeIndex={activeIndex}
-              activeContent={activeContent}
-              attachments={attachments}
-              canManage={canManage}
-              carouselDirection={carouselDirection}
-              draft={draft}
-              editing={editing}
-              fullscreen={fullscreen}
-              fullscreenClosing={fullscreenClosing}
-              lessons={lessons}
-              sectionCreationMode={sectionCreationMode}
-              sectionOptions={sectionOptions}
-              sectionTitleDraft={sectionTitleDraft}
-              onAddSection={addSection}
-              onCancel={cancelEditing}
-              onCancelSectionCreation={cancelSectionCreation}
-              onCloseFullscreen={closeFullscreen}
-              onDeleteSection={removeActiveSection}
-              onDraftChange={setDraft}
-              onOpenAttachment={setPreviewAttachment}
-              onOpenFullscreen={openFullscreen}
-              onMoveSection={reorderSection}
-              onNavigateSection={navigateSection}
-              onRenameSection={updateSectionTitle}
-              onSave={saveDraft}
-              onSelect={selectSection}
-              previousSectionTitle={previousSection?.title}
-              onSectionTitleDraftChange={setSectionTitleDraft}
-              onStartSectionCreation={startSectionCreation}
-              onUpdateProject={updateProjectInfo}
-              nextSectionTitle={nextSection?.title}
-              setEditing={setEditing}
-            />
-          )}
-          {tab === 'files' && (
-            <FilesView
-              attachments={attachments}
-              canManage={canManage}
-              onAddAttachment={addAttachment}
-              onDeleteAttachment={removeAttachment}
-              onOpenAttachment={setPreviewAttachment}
-            />
-          )}
-          {tab === 'lessons' && (
-            <LessonsView
-              lessons={lessons}
-              canManage={canManage}
-              onAddLesson={addLesson}
-              onDeleteLesson={removeLesson}
-              onUpdateLesson={updateLessonItem}
-            />
-          )}
-          {tab === 'history' && <HistoryView project={currentProject} />}
-        </div>
+        {isDev ? (
+          <>
+            <nav className="project-detail__tabs" aria-label="Conteúdo de desenvolvimento">
+              {[
+                { id: 'doc' as const, label: 'Documentação', icon: FileText },
+                { id: 'files' as const, label: `Arquivos (${devAttachments.length})`, icon: Paperclip },
+              ].map((item) => {
+                const Icon = item.icon
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={tab === item.id ? 'project-detail__tab project-detail__tab--active' : 'project-detail__tab'}
+                    onClick={() => changeTab(item.id)}
+                  >
+                    <Icon size={16} aria-hidden="true" />
+                    {item.label}
+                  </button>
+                )
+              })}
+            </nav>
+
+            <div
+              className="project-tab-transition"
+              data-active-tab={tab === 'files' ? 'files' : 'doc'}
+              style={{
+                // A aba Documentacao usa animacao so de opacidade (sem transform) para nao
+                // quebrar a tela cheia (position: fixed) do leitor no modo dev.
+                animationName:
+                  tab === 'files'
+                    ? tabAnimationStep % 2 === 0
+                      ? 'project-tab-enter-a'
+                      : 'project-tab-enter-b'
+                    : 'project-tab-doc-enter',
+              }}
+            >
+              {tab === 'files' ? (
+                <FilesView
+                  attachments={devAttachments}
+                  canManage={canManage}
+                  onAddAttachment={addAttachment}
+                  onDeleteAttachment={removeAttachment}
+                  onOpenAttachment={setPreviewAttachment}
+                />
+              ) : (
+                docView
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <nav className="project-detail__tabs" aria-label="Conteúdo do projeto">
+              {[
+                { id: 'doc' as const, label: 'Documentação', icon: FileText },
+                { id: 'files' as const, label: `Arquivos (${attachments.length})`, icon: Paperclip },
+                { id: 'lessons' as const, label: `Lições (${lessons.length})`, icon: Lightbulb },
+                { id: 'history' as const, label: 'Histórico', icon: History },
+              ].map((item) => {
+                const Icon = item.icon
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={tab === item.id ? 'project-detail__tab project-detail__tab--active' : 'project-detail__tab'}
+                    onClick={() => changeTab(item.id)}
+                  >
+                    <Icon size={16} aria-hidden="true" />
+                    {item.label}
+                  </button>
+                )
+              })}
+            </nav>
+
+            <div
+              className="project-tab-transition"
+              data-active-tab={tab}
+              style={{
+                animationName:
+                  tab === 'doc' ? 'project-tab-doc-enter' : tabAnimationStep % 2 === 0 ? 'project-tab-enter-a' : 'project-tab-enter-b',
+              }}
+            >
+              {tab === 'doc' && docView}
+              {tab === 'files' && (
+                <FilesView
+                  attachments={attachments}
+                  canManage={canManage}
+                  onAddAttachment={addAttachment}
+                  onDeleteAttachment={removeAttachment}
+                  onOpenAttachment={setPreviewAttachment}
+                />
+              )}
+              {tab === 'lessons' && (
+                <LessonsView
+                  lessons={lessons}
+                  canManage={canManage}
+                  onAddLesson={addLesson}
+                  onDeleteLesson={removeLesson}
+                  onUpdateLesson={updateLessonItem}
+                />
+              )}
+              {tab === 'history' && <HistoryView project={currentProject} />}
+            </div>
+          </>
+        )}
       </div>
       <AttachmentPreviewDialog
         attachment={previewAttachment}
@@ -753,6 +1014,9 @@ function ProjectDetailPage() {
 
 function DocView({
   project,
+  variant = 'project',
+  canSeeDev = false,
+  onChangeView,
   sections,
   activeId,
   active,
@@ -760,6 +1024,8 @@ function DocView({
   activeContent,
   attachments,
   canManage,
+  canManageInfo,
+  canDeleteProject,
   carouselDirection,
   draft,
   editing,
@@ -769,11 +1035,15 @@ function DocView({
   sectionCreationMode,
   sectionOptions,
   sectionTitleDraft,
+  citableSections,
+  sectionRefs,
+  onOpenSectionRef,
   onAddSection,
   onCancel,
   onCancelSectionCreation,
   onCloseFullscreen,
   onDeleteSection,
+  onDeleteProject,
   onDraftChange,
   onOpenAttachment,
   onOpenFullscreen,
@@ -790,6 +1060,9 @@ function DocView({
   setEditing,
 }: {
   project: Project
+  variant?: ProjectView
+  canSeeDev?: boolean
+  onChangeView?: (view: ProjectView) => void
   sections: Section[]
   activeId: string
   active: Section | undefined
@@ -797,6 +1070,8 @@ function DocView({
   activeContent: string
   attachments: ProjectAttachment[]
   canManage: boolean
+  canManageInfo: boolean
+  canDeleteProject: boolean
   carouselDirection: CarouselDirection
   draft: string
   editing: boolean
@@ -806,11 +1081,15 @@ function DocView({
   sectionCreationMode: SectionCreationMode | null
   sectionOptions: SectionOption[]
   sectionTitleDraft: string
+  citableSections?: SectionOption[]
+  sectionRefs?: MarkdownSectionRef[]
+  onOpenSectionRef?: (sectionId: string) => void
   onAddSection: () => void
   onCancel: () => void
   onCancelSectionCreation: () => void
   onCloseFullscreen: () => void
   onDeleteSection: () => void
+  onDeleteProject: () => void
   onDraftChange: (value: string) => void
   onOpenAttachment: (attachment: ProjectAttachment) => void
   onOpenFullscreen: () => void
@@ -822,14 +1101,14 @@ function DocView({
   previousSectionTitle: string | undefined
   onSectionTitleDraftChange: (value: string) => void
   onStartSectionCreation: (mode: SectionCreationMode) => void
-  onUpdateProject: (project: Project, responsibleUserId?: string) => void
+  onUpdateProject: (project: Project, responsibleUserId?: string, devResponsibleUserIds?: string[]) => void
   nextSectionTitle: string | undefined
   setEditing: (value: boolean) => void
 }) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const isDev = variant === 'dev'
 
-  function insertAttachmentCitation(attachment: ProjectAttachment) {
-    const citation = `[[arquivo:${attachment.name}]]`
+  function insertCitation(citation: string, successMessage: string) {
     const textarea = textareaRef.current
     const start = textarea?.selectionStart ?? draft.length
     const end = textarea?.selectionEnd ?? start
@@ -841,7 +1120,67 @@ function DocView({
       textarea?.focus()
       textarea?.setSelectionRange(nextCaretPosition, nextCaretPosition)
     })
-    showToast('Citação de arquivo inserida')
+    showToast(successMessage)
+  }
+
+  function insertAttachmentCitation(attachment: ProjectAttachment) {
+    insertCitation(`[[arquivo:${attachment.name}]]`, 'Citação de arquivo inserida')
+  }
+
+  function insertSectionCitation(section: SectionOption) {
+    insertCitation(`[[secao:${section.title}]]`, 'Citação de seção do projeto inserida')
+  }
+
+  const emptyMessage = isDev
+    ? 'Nenhum requisito de desenvolvimento cadastrado ainda.'
+    : 'Nenhuma seção de documentação ainda.'
+
+  if (sections.length === 0) {
+    return (
+      <section className="project-doc-layout project-doc-layout--empty">
+        <div className="project-empty-state">
+          <FileText size={34} aria-hidden="true" />
+          <span>{emptyMessage}</span>
+          {canManage && (
+            <>
+              {sectionCreationMode ? (
+                <form
+                  className="project-section-create"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    onAddSection()
+                  }}
+                >
+                  <input
+                    value={sectionTitleDraft}
+                    autoFocus
+                    onChange={(event) => onSectionTitleDraftChange(event.target.value)}
+                    placeholder={isDev ? 'Ex.: Requisitos funcionais' : 'Ex.: Visão geral'}
+                  />
+                  <div>
+                    <button type="button" className="project-detail__ghost-btn" onClick={onCancelSectionCreation}>
+                      Cancelar
+                    </button>
+                    <button type="submit" className="project-detail__primary-btn">
+                      Criar
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  className="project-detail__primary-btn"
+                  onClick={() => onStartSectionCreation('section')}
+                >
+                  <Plus size={14} aria-hidden="true" />
+                  {isDev ? 'Criar requisito' : 'Criar seção'}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </section>
+    )
   }
 
   if (fullscreen) {
@@ -849,9 +1188,34 @@ function DocView({
       <div className={fullscreenClosing ? 'project-reader project-reader--closing' : 'project-reader'}>
         <div className="project-reader__bar">
           <div className="project-reader__bar-main">
-            <div className="project-reader__title">
-              {project.name} · {active?.title}
-            </div>
+            {canSeeDev && onChangeView && (
+              <div
+                className="project-view-switch project-view-switch--reader"
+                role="tablist"
+                aria-label="Trocar visualização do projeto"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={!isDev}
+                  className={`project-view-switch__item${!isDev ? ' project-view-switch__item--active' : ''}`}
+                  onClick={() => onChangeView('project')}
+                >
+                  <BookOpen size={15} aria-hidden="true" />
+                  Projeto
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={isDev}
+                  className={`project-view-switch__item project-view-switch__item--dev${isDev ? ' project-view-switch__item--active' : ''}`}
+                  onClick={() => onChangeView('dev')}
+                >
+                  <Code2 size={15} aria-hidden="true" />
+                  Desenvolvimento
+                </button>
+              </div>
+            )}
             <SectionSwitcher activeId={activeId} onSelect={onSelect} sections={sectionOptions} />
           </div>
           <button type="button" className="project-detail__ghost-btn project-reader__exit-button" onClick={onCloseFullscreen}>
@@ -866,7 +1230,13 @@ function DocView({
               key={active?.id}
               className={`project-reader__content project-document-card__content--${carouselDirection}`}
             >
-              <MarkdownView attachments={attachments} content={activeContent} onOpenAttachment={onOpenAttachment} />
+              <MarkdownView
+                attachments={attachments}
+                content={activeContent}
+                onOpenAttachment={onOpenAttachment}
+                sections={sectionRefs}
+                onOpenSection={onOpenSectionRef}
+              />
               <SectionPager
                 activeIndex={activeIndex}
                 nextSectionTitle={nextSectionTitle}
@@ -1014,6 +1384,24 @@ function DocView({
                   </div>
                 </div>
               )}
+              {isDev && citableSections && citableSections.length > 0 && (
+                <div className="project-editor__attachments project-editor__citations">
+                  <div className="project-editor__label">Citar seções do projeto</div>
+                  <div>
+                    {citableSections.map((section) => (
+                      <button
+                        key={section.id}
+                        type="button"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => insertSectionCitation(section)}
+                      >
+                        <Link2 size={11} aria-hidden="true" />
+                        {section.title}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="project-editor__footer">
                 <button type="button" className="project-detail__ghost-btn" onClick={onCancel}>
                   <X size={14} aria-hidden="true" />
@@ -1028,7 +1416,13 @@ function DocView({
             <div className="project-editor__pane">
               <div className="project-editor__label">Preview</div>
               <div className="project-editor__preview">
-                <MarkdownView attachments={attachments} content={draft} onOpenAttachment={onOpenAttachment} />
+                <MarkdownView
+                  attachments={attachments}
+                  content={draft}
+                  onOpenAttachment={onOpenAttachment}
+                  sections={sectionRefs}
+                  onOpenSection={onOpenSectionRef}
+                />
               </div>
             </div>
           </div>
@@ -1039,7 +1433,13 @@ function DocView({
                 key={active?.id}
                 className={`project-document-card__content project-document-card__content--${carouselDirection}`}
               >
-                <MarkdownView attachments={attachments} content={activeContent} onOpenAttachment={onOpenAttachment} />
+                <MarkdownView
+                  attachments={attachments}
+                  content={activeContent}
+                  onOpenAttachment={onOpenAttachment}
+                  sections={sectionRefs}
+                  onOpenSection={onOpenSectionRef}
+                />
                 <SectionPager
                   activeIndex={activeIndex}
                   nextSectionTitle={nextSectionTitle}
@@ -1053,11 +1453,19 @@ function DocView({
         )}
       </article>
 
-      <aside className="project-detail__aside">
-        <ProjectInfo canManage={canManage} onSave={onUpdateProject} project={project} />
-        <RelatedFiles attachments={attachments} onOpenAttachment={onOpenAttachment} />
-        <RelatedLessons lessons={lessons} />
-      </aside>
+      {!isDev && (
+        <aside className="project-detail__aside">
+          <ProjectInfo
+            canManage={canManageInfo}
+            canDeleteProject={canDeleteProject}
+            onDeleteProject={onDeleteProject}
+            onSave={onUpdateProject}
+            project={project}
+          />
+          <RelatedFiles attachments={attachments} onOpenAttachment={onOpenAttachment} />
+          <RelatedLessons lessons={lessons} />
+        </aside>
+      )}
     </section>
   )
 }
@@ -1316,19 +1724,31 @@ function ProjectReaderFiles({
   )
 }
 
+function resolveDevResponsibleIds(project: Project, users: UserListItem[]): string[] {
+  if (project.devResponsibleIds?.length) return project.devResponsibleIds
+  const names = project.devResponsibles ?? []
+  return users.filter((user) => names.includes(user.name)).map((user) => user.id)
+}
+
 function ProjectInfo({
   project,
   canManage,
+  canDeleteProject,
+  onDeleteProject,
   onSave,
 }: {
   project: Project
   canManage: boolean
-  onSave: (project: Project, responsibleUserId?: string) => void
+  canDeleteProject: boolean
+  onDeleteProject: () => void
+  onSave: (project: Project, responsibleUserId?: string, devResponsibleUserIds?: string[]) => void
 }) {
+  const { statuses } = useProjectStatuses()
   const [users, setUsers] = useState<UserListItem[]>([])
   const [editing, setEditing] = useState(false)
   const [tagDraft, setTagDraft] = useState('')
   const [techDraft, setTechDraft] = useState('')
+  const [devResponsibleIds, setDevResponsibleIds] = useState<string[]>([])
   const [draft, setDraft] = useState({
     name: project.name,
     description: project.description,
@@ -1344,7 +1764,9 @@ function ProjectInfo({
       setUsers(userList)
       const match = userList.find((user) => user.name === project.responsible)
       setDraft((current) => ({ ...current, responsibleUserId: match?.id ?? '' }))
+      setDevResponsibleIds(resolveDevResponsibleIds(project, userList))
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project.responsible])
 
   useEffect(() => {
@@ -1358,6 +1780,7 @@ function ProjectInfo({
       tags: project.tags.join(', '),
       tech: project.tech?.join(', ') ?? '',
     })
+    setDevResponsibleIds(resolveDevResponsibleIds(project, users))
     setTagDraft('')
     setTechDraft('')
   }, [project, users])
@@ -1382,6 +1805,7 @@ function ProjectInfo({
       tags: project.tags.join(', '),
       tech: project.tech?.join(', ') ?? '',
     })
+    setDevResponsibleIds(resolveDevResponsibleIds(project, users))
     setTagDraft('')
     setTechDraft('')
   }
@@ -1448,6 +1872,8 @@ function ProjectInfo({
       return
     }
 
+    const devResponsibleUsers = users.filter((user) => devResponsibleIds.includes(user.id))
+
     onSave(
       {
         ...project,
@@ -1458,8 +1884,11 @@ function ProjectInfo({
         client: draft.client.trim() || undefined,
         tags: parseList(draft.tags, true),
         tech: parseList(draft.tech),
+        devResponsibles: devResponsibleUsers.map((user) => user.name),
+        devResponsibleIds: devResponsibleUsers.map((user) => user.id),
       },
       responsibleUser.id,
+      devResponsibleIds,
     )
     setEditing(false)
   }
@@ -1486,11 +1915,7 @@ function ProjectInfo({
               className="project-info-form__mui-field"
               value={draft.status}
               onChange={(value) => updateDraft('status', value as ProjectStatus)}
-              options={[
-                { value: 'active', label: 'Ativo' },
-                { value: 'paused', label: 'Pausado' },
-                { value: 'done', label: 'Concluído' },
-              ]}
+              options={statuses.map((status) => ({ value: status.code, label: status.label }))}
             />
           </label>
           <label className="project-info-form__select-field">
@@ -1507,6 +1932,14 @@ function ProjectInfo({
               }))}
             />
           </label>
+          <div className="project-info-form__dev-responsibles">
+            <span className="project-info-form__dev-responsibles-label">Desenvolvedores responsáveis</span>
+            {users.length === 0 ? (
+              <p className="project-info-form__hint">Nenhum usuário disponível.</p>
+            ) : (
+              <DevResponsibleSelect users={users} value={devResponsibleIds} onChange={setDevResponsibleIds} />
+            )}
+          </div>
           <label>
             Cliente
             <input value={draft.client} onChange={(event) => updateDraft('client', event.target.value)} />
@@ -1588,12 +2021,25 @@ function ProjectInfo({
       </div>
       <dl className="project-detail__info">
         <InfoRow icon={Users} label="Responsável" value={project.responsible} />
+        <InfoRow
+          icon={Code2}
+          label="Desenvolvedores responsáveis"
+          value={project.devResponsibles?.length ? project.devResponsibles.join(', ') : 'Não definido'}
+        />
         {project.client && <InfoRow icon={Users} label="Cliente" value={project.client} />}
         <InfoRow icon={Calendar} label="Criado em" value={formatDateBR(project.createdAt)} />
         <InfoRow icon={Calendar} label="Atualizado" value={formatDateBR(project.updatedAt)} />
       </dl>
       <TagList icon={Tag} label="Tags" values={project.tags} />
       {project.tech && <TagList icon={FileCode} label="Tecnologias" values={project.tech} featured />}
+      {canDeleteProject && (
+        <div className="project-detail__danger-zone">
+          <button type="button" className="project-detail__danger-btn" onClick={onDeleteProject}>
+            <Trash2 size={14} aria-hidden="true" />
+            Apagar projeto
+          </button>
+        </div>
+      )}
     </div>
   )
 }

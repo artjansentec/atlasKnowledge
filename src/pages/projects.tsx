@@ -21,20 +21,19 @@ import {
   type ProjectListItem,
   type ProjectUpdate,
 } from '../lib/projects-api'
-import { statusLabels, type ProjectStatus } from '../lib/projects'
+import { type ProjectStatus } from '../lib/projects'
+import { useProjectStatuses } from '../lib/project-status'
 import './css/projects.css'
 
 type Filter = 'all' | ProjectStatus
 
-const filterLabels: Record<Filter, string> = {
-  all: 'Todos',
-  active: statusLabels.active,
-  paused: statusLabels.paused,
-  done: statusLabels.done,
-}
-
 function ProjectsPage() {
   const { isCurrentUserAdmin } = useAuth()
+  const { statuses } = useProjectStatuses()
+  const filterOptions = useMemo<{ value: Filter; label: string }[]>(
+    () => [{ value: 'all', label: 'Todos' }, ...statuses.map((status) => ({ value: status.code, label: status.label }))],
+    [statuses],
+  )
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
   const [createdProject, setCreatedProject] = useState('')
@@ -135,14 +134,14 @@ function ProjectsPage() {
             </label>
 
             <div className="projects-filters" aria-label="Filtrar por status">
-              {(Object.keys(filterLabels) as Filter[]).map((item) => (
+              {filterOptions.map((item) => (
                 <button
-                  key={item}
+                  key={item.value}
                   type="button"
-                  className={filter === item ? 'projects-filter projects-filter--active' : 'projects-filter'}
-                  onClick={() => setFilter(item)}
+                  className={filter === item.value ? 'projects-filter projects-filter--active' : 'projects-filter'}
+                  onClick={() => setFilter(item.value)}
                 >
-                  {filterLabels[item]}
+                  {item.label}
                 </button>
               ))}
             </div>

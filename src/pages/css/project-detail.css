@@ -1,15 +1,33 @@
 .project-detail-page {
+  --doc-accent-rgb: 56, 173, 72;
+  --doc-primary: var(--primary);
+  --doc-primary-glow: var(--primary-glow);
   min-height: 100%;
   padding: 24px;
   color: var(--text);
   background:
-    radial-gradient(circle at top left, rgba(56, 173, 72, 0.12), transparent 34rem),
+    radial-gradient(circle at top left, rgba(var(--doc-accent-rgb), 0.12), transparent 34rem),
     linear-gradient(180deg, #f8fbf8 0%, #fff 36%);
 }
 
 .project-detail {
   width: min(100%, 1500px);
   margin-inline: auto;
+}
+
+/* Aba Desenvolvimento: troca o verde por um roxo claro em varios tons. */
+.project-detail[data-project-view='dev'],
+.project-detail-page[data-project-view='dev'] {
+  --doc-accent-rgb: 139, 92, 246;
+  --doc-primary: oklch(0.62 0.19 300);
+  --doc-primary-glow: oklch(0.75 0.17 300);
+}
+
+/* Fundo da pagina segue a cor da aba (verde no Projeto, roxo no Desenvolvimento). */
+.project-detail-page[data-project-view='dev'] {
+  background:
+    radial-gradient(circle at top left, rgba(var(--doc-accent-rgb), 0.12), transparent 34rem),
+    linear-gradient(180deg, #faf8ff 0%, #fff 36%);
 }
 
 .project-detail__breadcrumb,
@@ -41,7 +59,7 @@
 
 .project-detail__breadcrumb a {
   gap: 6px;
-  color: var(--primary);
+  color: var(--doc-primary);
   font-weight: 700;
   text-decoration: none;
 }
@@ -110,7 +128,7 @@
   left: 14px;
   height: 3px;
   border-radius: 999px 999px 0 0;
-  background: linear-gradient(90deg, color-mix(in oklch, var(--primary) 78%, #ffffff), var(--primary));
+  background: linear-gradient(90deg, color-mix(in oklch, var(--doc-primary) 78%, #ffffff), var(--doc-primary));
   content: '';
   opacity: 0;
   transform: scaleX(0.36);
@@ -121,15 +139,15 @@
 }
 
 .project-detail__tab:hover {
-  background: rgba(56, 173, 72, 0.05);
+  background: rgba(var(--doc-accent-rgb), 0.05);
   color: var(--text-h);
   transform: translateY(-1px);
 }
 
 .project-detail__tab--active {
   color: var(--text-h);
-  background: linear-gradient(180deg, rgba(56, 173, 72, 0.12), rgba(56, 173, 72, 0.04));
-  box-shadow: 0 12px 28px rgba(56, 173, 72, 0.12);
+  background: linear-gradient(180deg, rgba(var(--doc-accent-rgb), 0.12), rgba(var(--doc-accent-rgb), 0.04));
+  box-shadow: 0 12px 28px rgba(var(--doc-accent-rgb), 0.12);
 }
 
 .project-detail__tab--active::after {
@@ -268,7 +286,7 @@
 }
 
 .project-detail__panel-title--toggle:hover {
-  background: rgba(56, 173, 72, 0.05);
+  background: rgba(var(--doc-accent-rgb), 0.05);
 }
 
 .project-detail__panel-title--toggle > span {
@@ -366,7 +384,7 @@
 }
 
 .project-detail__panel-title button:hover {
-  background: rgba(56, 173, 72, 0.08);
+  background: rgba(var(--doc-accent-rgb), 0.08);
 }
 
 .project-section-actions {
@@ -465,7 +483,7 @@
   left: 0;
   width: 3px;
   border-radius: 999px;
-  background: linear-gradient(180deg, color-mix(in oklch, var(--primary) 78%, #ffffff), var(--primary));
+  background: linear-gradient(180deg, color-mix(in oklch, var(--doc-primary) 78%, #ffffff), var(--doc-primary));
   content: '';
   opacity: 0;
   transform: translateX(-6px) scaleY(0.45);
@@ -475,14 +493,14 @@
 }
 
 .project-section-tree__row:hover {
-  background: rgba(56, 173, 72, 0.06);
+  background: rgba(var(--doc-accent-rgb), 0.06);
   transform: translateX(2px);
 }
 
 .project-section-tree__row--active {
-  color: var(--primary);
-  background: linear-gradient(90deg, rgba(56, 173, 72, 0.14), rgba(56, 173, 72, 0.06));
-  box-shadow: inset 0 0 0 1px rgba(56, 173, 72, 0.12), 0 10px 24px rgba(56, 173, 72, 0.1);
+  color: var(--doc-primary);
+  background: linear-gradient(90deg, rgba(var(--doc-accent-rgb), 0.14), rgba(var(--doc-accent-rgb), 0.06));
+  box-shadow: inset 0 0 0 1px rgba(var(--doc-accent-rgb), 0.12), 0 10px 24px rgba(var(--doc-accent-rgb), 0.1);
   font-weight: 700;
   animation: project-section-active 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
@@ -545,7 +563,7 @@
 }
 
 .project-section-tree__move-actions button:hover:not(:disabled) {
-  background: rgba(56, 173, 72, 0.08);
+  background: rgba(var(--doc-accent-rgb), 0.08);
 }
 
 .project-section-tree__dot {
@@ -567,7 +585,7 @@
 }
 
 .project-section-tree__row--active .project-section-tree__dot::before {
-  background: var(--primary);
+  background: var(--doc-primary);
   transform: scale(1.45);
 }
 
@@ -602,7 +620,7 @@
 }
 
 .project-document-card__toolbar svg {
-  color: var(--primary);
+  color: var(--doc-primary);
 }
 
 .project-document-card__actions {
@@ -646,7 +664,7 @@
 
 .project-view-toggle__item--active {
   color: var(--primary-foreground);
-  background: var(--primary);
+  background: var(--doc-primary);
 }
 
 .project-detail__ghost-btn {
@@ -803,7 +821,7 @@
   border-bottom: 1px solid var(--border);
   padding: 9px 16px;
   color: var(--muted-foreground);
-  background: rgba(56, 173, 72, 0.04);
+  background: rgba(var(--doc-accent-rgb), 0.04);
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 700;
@@ -813,7 +831,7 @@
 
 .project-editor__attachments {
   border-top: 1px solid var(--border);
-  background: rgba(56, 173, 72, 0.035);
+  background: rgba(var(--doc-accent-rgb), 0.035);
 }
 
 .project-editor__attachments > div:last-child {
@@ -850,8 +868,8 @@
 }
 
 .project-editor__attachments button:hover {
-  border-color: rgba(56, 173, 72, 0.3);
-  color: var(--primary);
+  border-color: rgba(var(--doc-accent-rgb), 0.3);
+  color: var(--doc-primary);
 }
 
 .project-editor textarea {
@@ -876,7 +894,7 @@
   gap: 8px;
   border-top: 1px solid var(--border);
   padding: 10px 14px;
-  background: rgba(56, 173, 72, 0.04);
+  background: rgba(var(--doc-accent-rgb), 0.04);
 }
 
 .project-editor__preview {
@@ -959,10 +977,10 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  border: 1px solid rgba(56, 173, 72, 0.2);
+  border: 1px solid rgba(var(--doc-accent-rgb), 0.2);
   border-radius: 999px;
   padding: 4px 8px;
-  color: var(--primary);
+  color: var(--doc-primary);
   background: var(--accent-bg);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -971,13 +989,13 @@
 }
 
 .project-tag-editor__chips button:hover {
-  border-color: rgba(56, 173, 72, 0.38);
+  border-color: rgba(var(--doc-accent-rgb), 0.38);
   background: color-mix(in oklch, var(--accent-bg) 70%, var(--surface));
 }
 
 .project-tag-editor__chips--tech button {
-  border-color: rgba(56, 173, 72, 0.24);
-  color: var(--primary);
+  border-color: rgba(var(--doc-accent-rgb), 0.24);
+  color: var(--doc-primary);
   background: var(--accent-bg);
 }
 
@@ -1047,14 +1065,14 @@
   border-radius: 999px;
   padding: 3px 8px;
   color: var(--muted-foreground);
-  background: rgba(56, 173, 72, 0.06);
+  background: rgba(var(--doc-accent-rgb), 0.06);
   font-family: var(--font-mono);
   font-size: 11px;
 }
 
 .project-detail__tag--featured {
-  border-color: rgba(56, 173, 72, 0.24);
-  color: var(--primary);
+  border-color: rgba(var(--doc-accent-rgb), 0.24);
+  color: var(--doc-primary);
   background: var(--accent-bg);
 }
 
@@ -1083,7 +1101,7 @@
 }
 
 .project-related-list__button:hover {
-  background: rgba(56, 173, 72, 0.06);
+  background: rgba(var(--doc-accent-rgb), 0.06);
 }
 
 .project-related-list strong,
@@ -1115,7 +1133,7 @@
 .project-detail__lessons li {
   display: grid;
   gap: 4px;
-  border-left: 2px solid rgba(56, 173, 72, 0.42);
+  border-left: 2px solid rgba(var(--doc-accent-rgb), 0.42);
   padding-left: 11px;
 }
 
@@ -1153,7 +1171,7 @@
 }
 
 .project-file-icon--xlsx {
-  color: var(--primary);
+  color: var(--doc-primary);
   background: var(--accent-bg);
 }
 
@@ -1224,14 +1242,14 @@
 }
 
 .project-file-card:hover {
-  border-color: rgba(56, 173, 72, 0.35);
+  border-color: rgba(var(--doc-accent-rgb), 0.35);
   box-shadow: var(--shadow-soft);
 }
 
 .project-file-card--selected {
-  border-color: rgba(56, 173, 72, 0.58);
-  background: rgba(56, 173, 72, 0.055);
-  box-shadow: 0 16px 32px rgba(56, 173, 72, 0.12);
+  border-color: rgba(var(--doc-accent-rgb), 0.58);
+  background: rgba(var(--doc-accent-rgb), 0.055);
+  box-shadow: 0 16px 32px rgba(var(--doc-accent-rgb), 0.12);
 }
 
 .project-file-card__actions {
@@ -1271,7 +1289,7 @@
   border: 1px solid var(--border);
   border-radius: 999px;
   padding: 5px 9px;
-  color: var(--primary);
+  color: var(--doc-primary);
   background: var(--surface);
   font-family: var(--font-mono);
   font-size: 12px;
@@ -1295,7 +1313,7 @@
   border-bottom: 1px solid var(--border);
   padding: 20px;
   background:
-    radial-gradient(circle at top left, rgba(56, 173, 72, 0.12), transparent 20rem),
+    radial-gradient(circle at top left, rgba(var(--doc-accent-rgb), 0.12), transparent 20rem),
     var(--surface);
 }
 
@@ -1440,7 +1458,7 @@
 }
 
 .project-file-preview__backend-meta a {
-  color: var(--primary);
+  color: var(--doc-primary);
   font-weight: 700;
   text-decoration: none;
 }
@@ -1506,10 +1524,10 @@
 
 .project-file-preview__callout {
   margin-top: 32px;
-  border-left: 3px solid var(--primary);
+  border-left: 3px solid var(--doc-primary);
   border-radius: 12px;
   padding: 14px;
-  color: var(--primary);
+  color: var(--doc-primary);
   background: var(--accent-bg);
   font-weight: 700;
 }
@@ -1565,7 +1583,7 @@
 }
 
 .project-file-preview--sheet th {
-  color: var(--primary);
+  color: var(--doc-primary);
   background: var(--accent-bg);
   font-family: var(--font-mono);
   font-size: 12px;
@@ -1579,7 +1597,7 @@
   gap: 20px;
   padding: 32px;
   background:
-    linear-gradient(135deg, rgba(56, 173, 72, 0.18), transparent),
+    linear-gradient(135deg, rgba(var(--doc-accent-rgb), 0.18), transparent),
     #111827;
 }
 
@@ -1596,7 +1614,7 @@
   width: 10px;
   height: 10px;
   border-radius: 999px;
-  background: var(--primary);
+  background: var(--doc-primary);
 }
 
 .project-file-preview__flow {
@@ -1654,9 +1672,9 @@
 }
 
 .project-lesson-guide__item {
-  --lesson-guide-color: var(--primary);
-  --lesson-guide-bg: rgba(56, 173, 72, 0.08);
-  --lesson-guide-border: rgba(56, 173, 72, 0.22);
+  --lesson-guide-color: var(--doc-primary);
+  --lesson-guide-bg: rgba(var(--doc-accent-rgb), 0.08);
+  --lesson-guide-border: rgba(var(--doc-accent-rgb), 0.22);
 
   display: flex;
   width: 100%;
@@ -1705,9 +1723,9 @@
 }
 
 .project-lesson-guide__item--success {
-  --lesson-guide-color: var(--primary);
-  --lesson-guide-bg: rgba(56, 173, 72, 0.08);
-  --lesson-guide-border: rgba(56, 173, 72, 0.22);
+  --lesson-guide-color: var(--doc-primary);
+  --lesson-guide-bg: rgba(var(--doc-accent-rgb), 0.08);
+  --lesson-guide-border: rgba(var(--doc-accent-rgb), 0.22);
 }
 
 .project-lesson-guide__item > span {
@@ -1772,7 +1790,7 @@
 }
 
 .project-lesson-type-option {
-  --lesson-option-color: var(--primary);
+  --lesson-option-color: var(--doc-primary);
 
   display: flex;
   align-items: center;
@@ -1794,7 +1812,7 @@
 }
 
 .project-lesson-type-option--success {
-  --lesson-option-color: var(--primary);
+  --lesson-option-color: var(--doc-primary);
 }
 
 .project-lesson-type-option__dot {
@@ -1849,9 +1867,9 @@
 }
 
 .project-lesson-card {
-  --lesson-color: var(--primary);
+  --lesson-color: var(--doc-primary);
   --lesson-bg: var(--accent-bg);
-  --lesson-border: rgba(56, 173, 72, 0.2);
+  --lesson-border: rgba(var(--doc-accent-rgb), 0.2);
 
   display: flex;
   gap: 14px;
@@ -1881,9 +1899,9 @@
 }
 
 .project-lesson-card--success {
-  --lesson-color: var(--primary);
-  --lesson-bg: rgba(56, 173, 72, 0.08);
-  --lesson-border: rgba(56, 173, 72, 0.22);
+  --lesson-color: var(--doc-primary);
+  --lesson-bg: rgba(var(--doc-accent-rgb), 0.08);
+  --lesson-border: rgba(var(--doc-accent-rgb), 0.22);
 }
 
 .project-lesson-card__icon,
@@ -1903,7 +1921,7 @@
 }
 
 .project-history-panel__avatar {
-  color: var(--primary);
+  color: var(--doc-primary);
   background: var(--accent-bg);
 }
 
@@ -1947,10 +1965,10 @@
 }
 
 .project-lesson-tags span {
-  border: 1px solid rgba(56, 173, 72, 0.2);
+  border: 1px solid rgba(var(--doc-accent-rgb), 0.2);
   border-radius: 999px;
   padding: 3px 8px;
-  color: var(--primary);
+  color: var(--doc-primary);
   background: var(--accent-bg);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -1971,10 +1989,10 @@
   width: fit-content;
   align-items: center;
   gap: 5px;
-  border: 1px solid var(--lesson-border, rgba(56, 173, 72, 0.2));
+  border: 1px solid var(--lesson-border, rgba(var(--doc-accent-rgb), 0.2));
   border-radius: 999px;
   padding: 4px 9px;
-  color: var(--lesson-color, var(--primary));
+  color: var(--lesson-color, var(--doc-primary));
   background: var(--lesson-bg, var(--accent-bg));
   font-family: var(--font-mono);
   font-size: 11px;
@@ -2002,9 +2020,9 @@
 }
 
 .project-lesson-type--success {
-  --lesson-color: var(--primary);
-  --lesson-bg: rgba(56, 173, 72, 0.08);
-  --lesson-border: rgba(56, 173, 72, 0.22);
+  --lesson-color: var(--doc-primary);
+  --lesson-bg: rgba(var(--doc-accent-rgb), 0.08);
+  --lesson-border: rgba(var(--doc-accent-rgb), 0.22);
 }
 
 .project-lesson-type--compact {
@@ -2065,7 +2083,7 @@
 }
 
 .project-history-panel p em {
-  color: var(--primary);
+  color: var(--doc-primary);
   font-family: var(--font-mono);
   font-style: normal;
 }
@@ -2093,7 +2111,9 @@
   inset: 0;
   z-index: 100;
   overflow-y: auto;
-  background: var(--background);
+  background:
+    radial-gradient(circle at top left, rgba(var(--doc-accent-rgb), 0.12), transparent 34rem),
+    linear-gradient(180deg, color-mix(in oklch, rgb(var(--doc-accent-rgb)) 5%, var(--background)) 0%, var(--background) 36%);
   animation: project-reader-enter 0.24s ease both;
   transform-origin: center;
 }
@@ -2110,7 +2130,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 28px;
   border-bottom: 1px solid var(--border);
   padding: 10px max(24px, calc((100vw - 780px) / 2));
   background: color-mix(in oklch, var(--background) 92%, transparent);
@@ -2121,7 +2141,7 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 14px;
+  gap: 24px;
 }
 
 .project-section-switcher {
@@ -2150,7 +2170,7 @@
   display: inline-flex;
   flex: 0 0 auto;
   min-height: 40px;
-  border-color: rgba(56, 173, 72, 0.28);
+  border-color: rgba(var(--doc-accent-rgb), 0.28);
   color: var(--text-h);
   background: color-mix(in oklch, var(--surface) 96%, transparent);
   box-shadow: var(--shadow-soft);
@@ -2158,8 +2178,8 @@
 }
 
 .project-reader__exit-button:hover {
-  border-color: rgba(56, 173, 72, 0.42);
-  color: var(--primary);
+  border-color: rgba(var(--doc-accent-rgb), 0.42);
+  color: var(--doc-primary);
   background: var(--surface);
 }
 
@@ -2230,7 +2250,7 @@
 }
 
 .project-section-pager__button:hover:not(:disabled) {
-  border-color: rgba(56, 173, 72, 0.32);
+  border-color: rgba(var(--doc-accent-rgb), 0.32);
   box-shadow: var(--shadow-soft);
   transform: translateY(-1px);
 }
@@ -2324,7 +2344,7 @@
 }
 
 .project-reader-files__title:hover {
-  color: var(--primary);
+  color: var(--doc-primary);
 }
 
 .project-reader-files--open .project-reader-files__title {
@@ -2356,7 +2376,7 @@
   border-radius: 14px;
   padding: 8px;
   color: inherit;
-  background: rgba(56, 173, 72, 0.045);
+  background: rgba(var(--doc-accent-rgb), 0.045);
   text-align: left;
   cursor: pointer;
   transition:
@@ -2365,7 +2385,7 @@
 }
 
 .project-reader-files li button:hover {
-  background: rgba(56, 173, 72, 0.09);
+  background: rgba(var(--doc-accent-rgb), 0.09);
   transform: translateY(-1px);
 }
 
@@ -2437,7 +2457,7 @@
 .project-section-create input:focus-visible,
 .project-editor__meta input:focus-visible,
 .project-editor textarea:focus-visible {
-  outline: 2px solid var(--primary);
+  outline: 2px solid var(--doc-primary);
   outline-offset: 3px;
 }
 
@@ -2568,7 +2588,133 @@
   .project-files-toggle__chevron,
   .project-detail__panel-title--toggle,
   .project-reader-files,
-  .project-reader-files__title {
+  .project-reader-files__title,
+  .project-view-switch__item {
     transition: none;
   }
+}
+
+/* Toggle Projeto / Desenvolvimento */
+.project-view-switch {
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 18px;
+  padding: 4px;
+  border: 1px solid color-mix(in oklch, var(--border) 82%, transparent);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.project-view-switch__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--muted-foreground);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.project-view-switch__item:hover {
+  color: var(--text-h);
+  background: rgba(var(--doc-accent-rgb), 0.06);
+}
+
+.project-view-switch__item--dev:hover {
+  background: rgba(139, 92, 246, 0.08);
+}
+
+.project-view-switch__item--active {
+  color: var(--doc-primary);
+  background: linear-gradient(180deg, rgba(var(--doc-accent-rgb), 0.16), rgba(var(--doc-accent-rgb), 0.06));
+  box-shadow: inset 0 0 0 1px rgba(var(--doc-accent-rgb), 0.22);
+}
+
+.project-view-switch__item--dev.project-view-switch__item--active {
+  color: oklch(0.55 0.19 300);
+  background: linear-gradient(180deg, rgba(139, 92, 246, 0.16), rgba(139, 92, 246, 0.06));
+  box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.24);
+}
+
+.project-view-switch__item:focus-visible {
+  outline: 2px solid var(--doc-primary);
+  outline-offset: 2px;
+}
+
+/* Toggle compacto dentro da barra do leitor em tela cheia */
+.project-view-switch--reader {
+  flex: 0 0 auto;
+  margin-bottom: 0;
+  padding: 3px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-soft);
+}
+
+.project-view-switch--reader .project-view-switch__item {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.project-view-switch--reader .project-view-switch__item svg {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 720px) {
+  .project-view-switch--reader .project-view-switch__item {
+    padding: 0 10px;
+    font-size: 12px;
+  }
+}
+
+/* Estado vazio de documentacao / requisitos */
+.project-doc-layout--empty {
+  display: block;
+}
+
+.project-doc-layout--empty .project-empty-state {
+  gap: 16px;
+}
+
+.project-doc-layout--empty .project-section-create {
+  width: min(100%, 360px);
+}
+
+/* Dev responsaveis (formulario de informacoes) */
+.project-info-form__dev-responsibles {
+  display: grid;
+  gap: 8px;
+}
+
+.project-info-form__dev-responsibles-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.project-info-form__hint {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+/* Zona de risco (apagar projeto) */
+.project-detail__danger-zone {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid color-mix(in oklch, var(--destructive) 24%, transparent);
+}
+
+.project-detail__danger-zone .project-detail__danger-btn {
+  width: 100%;
+  justify-content: center;
 }

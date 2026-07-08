@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/app-shell'
 import { AuthProvider, useAuth } from './lib/auth'
+import { ProjectStatusProvider } from './lib/project-status'
 import './index.css'
 import DashboardPage from './pages/dashboard'
 import LessonsPage from './pages/lessons'
@@ -24,9 +25,11 @@ function ProtectedLayout() {
   if (!user) return <Navigate to="/login" replace />
 
   return (
-    <AppShell>
-      <Outlet />
-    </AppShell>
+    <ProjectStatusProvider>
+      <AppShell>
+        <Outlet />
+      </AppShell>
+    </ProjectStatusProvider>
   )
 }
 

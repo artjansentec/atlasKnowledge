@@ -1,4 +1,4 @@
-﻿export type ProjectStatus = 'active' | 'paused' | 'done'
+﻿export type ProjectStatus = 'active' | 'paused' | 'done' | 'cancelled'
 export type ProjectLessonType = 'problem' | 'attention' | 'future' | 'success'
 
 export const lessonTypeOptions: { value: ProjectLessonType; label: string; description: string }[] = [
@@ -116,9 +116,13 @@ export type Project = {
   updatedAt: string
   tags: string[]
   tech?: string[]
+  devResponsibles: string[]
+  devResponsibleIds?: string[]
   attachments: ProjectAttachment[]
+  devAttachments: ProjectAttachment[]
   lessons: ProjectLesson[]
   sections: Section[]
+  devSections: Section[]
   history: ProjectHistory[]
 }
 
@@ -126,6 +130,39 @@ export const statusLabels: Record<ProjectStatus, string> = {
   active: 'Ativo',
   paused: 'Pausado',
   done: 'Concluído',
+  cancelled: 'Cancelado',
+}
+
+export type ProjectStatusMeta = {
+  code: ProjectStatus
+  label: string
+  color: string
+  background: string
+  sortOrder: number
+}
+
+// Fallback usado enquanto a rota GET /project-statuses nao respondeu ou falhou.
+export const defaultProjectStatuses: ProjectStatusMeta[] = [
+  { code: 'active', label: 'Ativo', color: '#1d7c2a', background: '#dcfce7', sortOrder: 1 },
+  { code: 'paused', label: 'Pausado', color: '#b45309', background: '#fef3c7', sortOrder: 2 },
+  { code: 'done', label: 'Concluído', color: '#14532d', background: '#86efac', sortOrder: 3 },
+  { code: 'cancelled', label: 'Cancelado', color: '#4b5563', background: '#e5e7eb', sortOrder: 4 },
+]
+
+export function getStatusMetaFrom(
+  statuses: ProjectStatusMeta[],
+  code: ProjectStatus,
+): ProjectStatusMeta {
+  return (
+    statuses.find((status) => status.code === code) ??
+    defaultProjectStatuses.find((status) => status.code === code) ?? {
+      code,
+      label: statusLabels[code] ?? code,
+      color: '#4b5563',
+      background: '#e5e7eb',
+      sortOrder: 99,
+    }
+  )
 }
 
 export function flattenSections(sections: Section[], depth = 0): { section: Section; depth: number }[] {

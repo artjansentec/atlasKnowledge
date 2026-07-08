@@ -42,28 +42,29 @@
 }
 
 .markdown-view li::marker {
-  color: var(--primary);
+  color: var(--doc-primary, var(--primary));
 }
 
 .markdown-view blockquote {
   margin: 24px 0 0;
-  border-left: 3px solid var(--primary);
+  border-left: 3px solid var(--doc-primary, var(--primary));
   border-radius: 12px;
   padding: 14px 16px;
   color: color-mix(in oklch, var(--foreground) 84%, transparent);
-  background: rgba(56, 173, 72, 0.07);
+  background: rgba(var(--doc-accent-rgb, 56, 173, 72), 0.07);
 }
 
-.markdown-file-reference {
+.markdown-file-reference,
+.markdown-section-reference {
   display: inline-flex;
   align-items: center;
   max-width: 13rem;
   margin-inline: 2px;
-  border: 1px solid rgba(56, 173, 72, 0.2);
+  border: 1px solid rgba(var(--doc-accent-rgb, 56, 173, 72), 0.2);
   border-radius: 7px;
   padding: 1px 7px;
-  color: var(--primary);
-  background: rgba(56, 173, 72, 0.08);
+  color: var(--doc-primary, var(--primary));
+  background: rgba(var(--doc-accent-rgb, 56, 173, 72), 0.08);
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 600;
@@ -75,18 +76,31 @@
     background 0.18s ease;
 }
 
-.markdown-file-reference__name {
+.markdown-file-reference__name,
+.markdown-section-reference__name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.markdown-file-reference:hover {
-  border-color: rgba(56, 173, 72, 0.38);
-  background: rgba(56, 173, 72, 0.12);
+.markdown-section-reference {
+  color: oklch(0.55 0.19 300);
+  border-color: rgba(139, 92, 246, 0.28);
+  background: rgba(139, 92, 246, 0.1);
 }
 
-.markdown-file-reference:focus-visible {
-  outline: 2px solid var(--primary);
+.markdown-file-reference:hover {
+  border-color: rgba(var(--doc-accent-rgb, 56, 173, 72), 0.38);
+  background: rgba(var(--doc-accent-rgb, 56, 173, 72), 0.12);
+}
+
+.markdown-section-reference:hover {
+  border-color: rgba(139, 92, 246, 0.5);
+  background: rgba(139, 92, 246, 0.16);
+}
+
+.markdown-file-reference:focus-visible,
+.markdown-section-reference:focus-visible {
+  outline: 2px solid var(--doc-primary, var(--primary));
   outline-offset: 2px;
 }
