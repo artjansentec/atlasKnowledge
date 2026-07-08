@@ -27,10 +27,13 @@ Documentação, decisões, arquivos, histórico e lições aprendidas — conect
 
 - [Sobre o projeto](#-sobre-o-projeto)
 - [Funcionalidades](#-funcionalidades)
+- [Perfis e permissões](#-perfis-e-permissões)
 - [Fluxo principal](#-fluxo-principal)
 - [Fase atual](#-fase-atual)
+- [Novidades recentes](#-novidades-recentes)
 - [Stack tecnológica](#️-stack-tecnológica)
 - [Estrutura do repositório](#-estrutura-do-repositório)
+- [Integração com o backend](#-integração-com-o-backend)
 - [Como rodar](#-como-rodar)
 - [Roadmap](#-roadmap)
 - [Visão de produto](#-visão-de-produto)
@@ -71,10 +74,13 @@ Indicadores de projetos, documentos, lições aprendidas e atualizações recent
 Listagem com cards, métricas, busca local, filtro por status e linha do tempo de mudanças.
 
 ### 📄 Detalhe do projeto
-Abas para documentação, arquivos, lições aprendidas e histórico completo.
+Abas para documentação, **desenvolvimento**, arquivos, lições aprendidas e histórico completo.
+
+### 🧑‍💻 Aba de Desenvolvimento
+Espaço técnico separado da documentação, com seções e anexos próprios, visível apenas para admin e desenvolvedores.
 
 ### 📝 Markdown
-Leitor com navegação por seções, subseções e modo tela cheia. Editor com preview em tempo real.
+Leitor com navegação por seções, subseções e modo tela cheia. Editor com preview em tempo real e citações cruzadas.
 
 </td>
 <td width="50%" valign="top">
@@ -86,10 +92,10 @@ Pesquisa unificada por projetos, seções, lições aprendidas e histórico de a
 Central com filtros por tipo e busca por título, tags, projeto e responsável.
 
 ### ➕ Criação de projeto
-Formulário com geração de slug, preview visual e documentação inicial em Markdown.
+Formulário com geração de slug, preview visual, dev-responsáveis e documentação inicial em Markdown.
 
-### 🔐 Autenticação
-Login integrado à API, controle de sessão e permissões por papel e responsável.
+### 🔐 Perfis e permissões
+Login integrado à API com três perfis (admin, consultor, desenvolvedor) e regras por responsável.
 
 </td>
 </tr>
@@ -101,15 +107,34 @@ Login integrado à API, controle de sessão e permissões por papel e responsáv
 <br />
 
 - Shell principal com menu lateral e cabeçalho com busca
-- Gestão visual de seções: criar, renomear, remover e reordenar
-- Referências a arquivos no Markdown com `[[arquivo:nome-do-arquivo]]`
-- Área de anexos com visualização de arquivos do projeto
-- Integração com backend REST via Axios
-- Tipagem completa em TypeScript para projetos, anexos, lições e histórico
+- Três perfis de usuário (admin, consultor, desenvolvedor) com permissões aplicadas na UI
+- Aba de Desenvolvimento com seções e anexos separados da documentação
+- Seleção de dev-responsáveis por projeto (Autocomplete com múltipla escolha)
+- Status de projeto dinâmico (ativo, pausado, concluído, cancelado) com cores vindas da API
+- Gestão visual de seções: criar, renomear, remover e reordenar (documentação e desenvolvimento)
+- Upload real de anexos via `multipart/form-data`, com download autenticado
+- Referências no Markdown com `[[arquivo:nome-do-arquivo]]` e `[[secao:Título da seção]]`
+- Integração com backend REST via Axios (refresh token automático em `401`)
+- Tipagem completa em TypeScript para projetos, anexos, lições, seções e histórico
 - Componentes reutilizáveis: shell, badges, seletores e visualizador Markdown
 - Estilização dedicada por página com tokens visuais globais
 
 </details>
+
+---
+
+## 🔐 Perfis e permissões
+
+A aplicação trabalha com **três perfis** de usuário. A UI esconde ações conforme o papel, mas a segurança definitiva é responsabilidade do backend.
+
+| Perfil | Aba Projeto | Aba Desenvolvimento | Edição |
+|--------|-------------|---------------------|--------|
+| **Admin** | ✅ vê | ✅ vê | Tudo, inclusive apagar projeto |
+| **Consultor** | ✅ leitura | ❌ não vê | Nenhuma |
+| **Desenvolvedor** | ✅ leitura | ✅ vê | Somente aba Desenvolvimento, se for dev-responsável |
+| **Responsável** | ✅ vê | conforme perfil | Edita a aba Projeto (doc, arquivos, lições) |
+
+> O responsável edita a aba Projeto; o dev-responsável edita a aba Desenvolvimento. O admin faz tudo.
 
 ---
 
@@ -120,34 +145,54 @@ flowchart LR
     A[🔑 Login] --> B[📊 Dashboard]
     B --> C[📁 Projetos]
     C --> D[📄 Detalhe]
-    D --> E[📝 Editar Markdown]
+    D --> E[📝 Doc / Markdown]
+    D --> H[🧑‍💻 Desenvolvimento]
     B --> F[💡 Lições]
     B --> G[🔍 Busca global]
 ```
 
-1. **Login** — autenticação via API com restauração de sessão
+1. **Login** — autenticação via API com restauração de sessão e perfil do usuário
 2. **Dashboard** — visão geral da base de conhecimento
 3. **Projetos** — filtro por status ou busca por termos
-4. **Detalhe** — documentação, anexos, lições e histórico
-5. **Edição** — atualização de seções com preview antes de salvar
+4. **Detalhe** — documentação, desenvolvimento, anexos, lições e histórico
+5. **Edição** — atualização de seções com preview antes de salvar (conforme permissão)
 6. **Descoberta** — lições aprendidas e busca global para reutilizar conhecimento
 
 ---
 
 ## 📍 Fase atual
 
-O projeto está em **protótipo funcional de front-end** integrado a uma API REST. A experiência principal já pode ser navegada e validada visualmente, com fluxos suficientes para demonstrar a proposta de valor da wiki corporativa.
+O front-end está com a **experiência completa modelada e integrada ao contrato de API REST**. Nesta etapa, além dos fluxos base de wiki, foram adicionados os **três perfis de usuário**, a **aba de Desenvolvimento** e o **status dinâmico de projeto**. O foco agora é a **implementação do backend** seguindo o contrato descrito em [`BACKEND_API.md`](BACKEND_API.md).
 
 | Área | Status |
 |------|--------|
 | Interface e navegação | ✅ Implementada |
 | Autenticação e sessão | ✅ Integrada à API |
+| Perfis e permissões (admin/consultor/dev) | ✅ Implementados no front |
+| Aba de Desenvolvimento (dev-sections/anexos) | ✅ Implementada |
+| Dev-responsáveis por projeto | ✅ Implementado |
+| Status de projeto dinâmico com cores | ✅ Implementado (com fallback) |
 | CRUD de projetos e documentos | ✅ Via backend |
+| Upload de anexos | ✅ Implementado (projeto e dev) |
 | Busca e filtros | ✅ No cliente |
 | Leitura e edição Markdown | ✅ Funcional |
-| Upload de anexos | ⏳ Pendente |
+| Implementação do backend | ⏳ Em andamento (contrato definido) |
 | Auditoria completa | ⏳ Pendente |
 | Sugestões com IA | 🔮 Planejado |
+
+---
+
+## 🆕 Novidades recentes
+
+Melhorias incorporadas na etapa atual do projeto:
+
+- **Três perfis de usuário** — `admin`, `consultor` e `desenvolvedor`, com normalização de papéis legados e helpers de permissão (`canViewDev`, `canManageProject`, `canManageDevProject`).
+- **Aba de Desenvolvimento** — seções (`devSections`) e anexos (`devAttachments`) técnicos, separados da documentação e visíveis só para admin/desenvolvedor, com rotas espelhadas na API.
+- **Dev-responsáveis** — novo seletor com múltipla escolha (`DevResponsibleSelect`) na criação e edição do projeto; apenas dev-responsáveis editam a aba técnica.
+- **Status de projeto dinâmico** — quatro status (`active`, `paused`, `done`, `cancelled`) com rótulos e cores carregados de `GET /project-statuses`, com fallback local caso a rota falhe.
+- **Upload real de anexos** — envio via `multipart/form-data` e download autenticado, tanto na aba Projeto quanto na de Desenvolvimento.
+- **Citações cruzadas no Markdown** — referências a seções (`[[secao:Título]]`) e arquivos (`[[arquivo:nome]]`) resolvidas no visualizador.
+- **Contrato de API documentado** — todas as rotas, modelos e regras de autorização em [`BACKEND_API.md`](BACKEND_API.md).
 
 ---
 
@@ -178,18 +223,41 @@ O projeto está em **protótipo funcional de front-end** integrado a uma API RES
 
 ```
 src/
-├── components/       # Shell, Markdown, badges e seletores
-├── lib/              # API, auth, tipos e funções de projetos
-├── pages/            # Dashboard, projetos, lições, busca, login
-├── pages/css/        # Estilos específicos de cada tela
-├── assets/           # Logo, hero e recursos visuais
-├── App.tsx           # Rotas e layout protegido
-└── index.css         # Tokens visuais, tema e estilos globais
+├── components/                 # Shell, Markdown, badges e seletores
+│   ├── dev-responsible-select.tsx  # Seletor de dev-responsáveis
+│   ├── status-badge.tsx            # Badge de status com cores dinâmicas
+│   └── markdown-view.tsx           # Leitor/editor Markdown com citações
+├── lib/                        # API, auth, tipos e funções de projetos
+│   ├── auth.tsx                    # Contexto de sessão e permissões por perfil
+│   ├── project-status.tsx          # Provider de status (API + fallback)
+│   ├── projects.ts                 # Tipos e modelos do domínio
+│   └── projects-api.ts             # Chamadas REST (projetos, seções, anexos)
+├── pages/                      # Dashboard, projetos, lições, busca, login
+├── pages/css/                  # Estilos específicos de cada tela
+├── assets/                     # Logo, hero e recursos visuais
+├── App.tsx                     # Rotas e layout protegido
+└── index.css                   # Tokens visuais, tema e estilos globais
 
 public/
-├── favicon.png       # Ícone da aplicação
-└── icons.svg         # Sprite de ícones
+├── favicon.png                 # Ícone da aplicação
+└── icons.svg                   # Sprite de ícones
+
+BACKEND_API.md                  # Contrato de API para o backend
 ```
+
+---
+
+## 🔌 Integração com o backend
+
+O front consome a API REST via Axios. Todo o contrato esperado (rotas, modelos de dados, autenticação e regras de autorização) está documentado em [`BACKEND_API.md`](BACKEND_API.md).
+
+Pontos principais:
+
+- **Base URL** configurável por `VITE_API_URL` (padrão `http://localhost:8080/api/v1`).
+- **Autenticação** com access token JWT (`Authorization: Bearer`) e refresh token em cookie httpOnly; o front refaz a requisição automaticamente após um `401`.
+- **Perfis e autorização** aplicados no servidor — o front apenas esconde botões.
+- **Rotas espelhadas** para documentação (`sections`) e desenvolvimento (`dev-sections`), o mesmo valendo para anexos.
+- **Resiliência** — `GET /project-statuses` tem fallback local, então a UI segue funcionando mesmo sem o endpoint.
 
 ---
 
@@ -237,7 +305,11 @@ A aplicação estará disponível em `http://localhost:5173`.
 
 ## 🔮 Roadmap
 
-- [ ] Upload real de anexos
+- [x] Três perfis de usuário e permissões
+- [x] Aba de Desenvolvimento com seções e anexos próprios
+- [x] Status de projeto dinâmico com cores da API
+- [x] Upload real de anexos
+- [ ] Implementação do backend conforme `BACKEND_API.md`
 - [ ] Auditoria completa de alterações
 - [ ] Ranking de busca por relevância
 - [ ] Filtros avançados por responsável, status e área
