@@ -2128,25 +2128,28 @@
   top: 0;
   z-index: 3;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 28px;
+  gap: 16px 28px;
   border-bottom: 1px solid var(--border);
-  padding: 10px max(24px, calc((100vw - 780px) / 2));
+  padding: 10px max(24px, calc((100vw - 1180px) / 2));
   background: color-mix(in oklch, var(--background) 92%, transparent);
   backdrop-filter: blur(12px);
 }
 
 .project-reader__bar-main {
   display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
   min-width: 0;
   align-items: center;
-  gap: 24px;
+  gap: 16px 24px;
 }
 
 .project-section-switcher {
-  flex: 0 0 auto;
-  min-width: 220px;
+  flex: 0 1 auto;
+  min-width: 200px;
   max-width: min(34vw, 320px);
 }
 
