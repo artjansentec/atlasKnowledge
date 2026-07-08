@@ -15,10 +15,6 @@ Documentação, decisões, arquivos, histórico e lições aprendidas — conect
 [![Vite](https://img.shields.io/badge/Vite-8-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vite.dev/)
 [![License](https://img.shields.io/badge/License-Protótipo-22c55e?style=for-the-badge)](README.md)
 
-<br />
-
-<img src="src/assets/hero.png" alt="Ilustração Atlas Knowledge" width="480" />
-
 </div>
 
 ---
