@@ -1,4 +1,4 @@
-import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react'
+import { type FormEvent, type KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Dialog,
@@ -25,7 +25,6 @@ import {
   History,
   Lightbulb,
   Link2,
-  Maximize2,
   Minimize2,
   Paperclip,
   PencilLine,
@@ -40,12 +39,14 @@ import {
 } from 'lucide-react'
 import { confirmDanger, showToast } from '../components/app-alerts'
 import { DevResponsibleSelect } from '../components/dev-responsible-select'
+import { DocumentReaderDock } from '../components/document-reader-dock'
 import { MarkdownView, type MarkdownSectionRef } from '../components/markdown-view'
 import { StatusBadge } from '../components/status-badge'
 import { useProjectStatuses } from '../lib/project-status'
 import { ApiError, fetchAuthenticatedBlob } from '../lib/api'
 import { useAuth } from '../lib/auth'
 import { formatDateBR } from '../lib/date'
+import { buildExportSections } from '../lib/document-export-types'
 import {
   buildSectionReorderItems,
   createDevSection,
@@ -821,6 +822,7 @@ function ProjectDetailPage() {
       editing={editing}
       fullscreen={fullscreen}
       fullscreenClosing={fullscreenClosing}
+      savedDrafts={currentSavedDrafts}
       lessons={lessons}
       sectionCreationMode={sectionCreationMode}
       sectionOptions={sectionOptions}
@@ -1031,6 +1033,7 @@ function DocView({
   editing,
   fullscreen,
   fullscreenClosing,
+  savedDrafts,
   lessons,
   sectionCreationMode,
   sectionOptions,
@@ -1077,6 +1080,7 @@ function DocView({
   editing: boolean
   fullscreen: boolean
   fullscreenClosing: boolean
+  savedDrafts: Record<string, string>
   lessons: ProjectLesson[]
   sectionCreationMode: SectionCreationMode | null
   sectionOptions: SectionOption[]
@@ -1107,6 +1111,25 @@ function DocView({
 }) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const isDev = variant === 'dev'
+
+  const exportPayload = useMemo(() => {
+    if (!sections.length) return null
+
+    return {
+      projectName: project.name,
+      viewLabel: isDev ? 'Desenvolvimento' : 'Documentação',
+      responsible: project.responsible,
+      devResponsibles: project.devResponsibles,
+      client: project.client,
+      createdAt: project.createdAt,
+      sections: buildExportSections(sections, savedDrafts, flattenSections),
+    }
+  }, [isDev, project, savedDrafts, sections])
+
+  function toggleFullscreen() {
+    if (fullscreen) onCloseFullscreen()
+    else onOpenFullscreen()
+  }
 
   function insertCitation(citation: string, successMessage: string) {
     const textarea = textareaRef.current
@@ -1248,6 +1271,11 @@ function DocView({
           </div>
         </div>
         <ProjectReaderFiles attachments={attachments} onOpenAttachment={onOpenAttachment} />
+        <DocumentReaderDock
+          exportPayload={exportPayload}
+          fullscreen={fullscreen}
+          onToggleFullscreen={toggleFullscreen}
+        />
       </div>
     )
   }
@@ -1331,10 +1359,6 @@ function DocView({
                 </button>
               )}
             </div>
-            <button type="button" className="project-detail__ghost-btn" onClick={onOpenFullscreen}>
-              <Maximize2 size={14} aria-hidden="true" />
-              Tela cheia
-            </button>
           </div>
         </div>
 
@@ -1427,29 +1451,36 @@ function DocView({
             </div>
           </div>
         ) : (
-          <div className="project-document-carousel">
-            <div className="project-document-carousel__viewport">
-              <div
-                key={active?.id}
-                className={`project-document-card__content project-document-card__content--${carouselDirection}`}
-              >
-                <MarkdownView
-                  attachments={attachments}
-                  content={activeContent}
-                  onOpenAttachment={onOpenAttachment}
-                  sections={sectionRefs}
-                  onOpenSection={onOpenSectionRef}
-                />
-                <SectionPager
-                  activeIndex={activeIndex}
-                  nextSectionTitle={nextSectionTitle}
-                  onNavigateSection={onNavigateSection}
-                  previousSectionTitle={previousSectionTitle}
-                  totalSections={sectionOptions.length}
-                />
+          <>
+            <div className="project-document-carousel">
+              <div className="project-document-carousel__viewport">
+                <div
+                  key={active?.id}
+                  className={`project-document-card__content project-document-card__content--${carouselDirection}`}
+                >
+                  <MarkdownView
+                    attachments={attachments}
+                    content={activeContent}
+                    onOpenAttachment={onOpenAttachment}
+                    sections={sectionRefs}
+                    onOpenSection={onOpenSectionRef}
+                  />
+                  <SectionPager
+                    activeIndex={activeIndex}
+                    nextSectionTitle={nextSectionTitle}
+                    onNavigateSection={onNavigateSection}
+                    previousSectionTitle={previousSectionTitle}
+                    totalSections={sectionOptions.length}
+                  />
+                </div>
               </div>
             </div>
-          </div>
+            <DocumentReaderDock
+              exportPayload={exportPayload}
+              fullscreen={fullscreen}
+              onToggleFullscreen={toggleFullscreen}
+            />
+          </>
         )}
       </article>
 

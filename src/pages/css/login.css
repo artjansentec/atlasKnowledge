@@ -198,6 +198,63 @@
   text-decoration: underline;
 }
 
+.password-input-wrap {
+  position: relative;
+  display: block;
+}
+
+.password-input-wrap input {
+  width: 100%;
+  height: 44px;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 44px 0 12px;
+  color: var(--text-h);
+  background: var(--card);
+  font: inherit;
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.password-input-wrap input:focus {
+  border-color: var(--login-teal);
+  box-shadow: 0 0 0 3px var(--login-teal-soft);
+}
+
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted-foreground);
+  background: transparent;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.password-toggle:hover {
+  color: var(--login-teal-dark);
+  background: var(--login-teal-soft);
+}
+
+.password-toggle:focus-visible {
+  outline: 2px solid var(--login-teal);
+  outline-offset: 2px;
+}
+
 .field input {
   width: 100%;
   height: 44px;

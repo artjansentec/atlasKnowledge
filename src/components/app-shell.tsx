@@ -138,9 +138,6 @@ export function AppShell({ children }: { children?: ReactNode }) {
                 className="app-shell__search-input"
                 aria-label="Buscar projetos, seções, lições e arquivos"
               />
-              <kbd className="app-shell__search-kbd">
-                <Command size={12} aria-hidden="true" /> K
-              </kbd>
             </div>
           </form>
         </header>
