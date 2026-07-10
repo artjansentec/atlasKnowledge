@@ -1,3 +1,4 @@
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/app-shell'
 import { AuthProvider, useAuth } from './lib/auth'
@@ -50,6 +51,7 @@ function App() {
           </Route>
         </Routes>
       </BrowserRouter>
+      <SpeedInsights />
     </AuthProvider>
   )
 }
