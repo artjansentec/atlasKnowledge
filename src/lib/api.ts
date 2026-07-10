@@ -1,6 +1,14 @@
 import axios, { AxiosError, type AxiosRequestConfig } from 'axios'
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8080/api/v1'
+const API_VERSION_SUFFIX = '/api/v1'
+
+function normalizeApiBase(raw?: string): string {
+  const value = (raw?.trim() || 'http://localhost:8080').replace(/\/+$/, '')
+  if (/\/api\/v\d+$/.test(value)) return value
+  return `${value}${API_VERSION_SUFFIX}`
+}
+
+const API_BASE = normalizeApiBase(import.meta.env.VITE_API_URL)
 const API_ORIGIN = new URL(API_BASE).origin
 
 declare module 'axios' {
