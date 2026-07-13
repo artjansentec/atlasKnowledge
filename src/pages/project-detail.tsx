@@ -31,6 +31,7 @@ import {
   Plus,
   Rocket,
   Save,
+  Sparkles,
   Tag,
   Trash2,
   Trophy,
@@ -873,6 +874,15 @@ function ProjectDetailPage() {
             </div>
             <p>{currentProject.description}</p>
           </div>
+          {canManageDoc && (
+            <Link
+              to={`/projects/${currentProject.slug}/ai-generator`}
+              className="project-detail__ai-btn"
+            >
+              <Sparkles size={15} aria-hidden="true" />
+              Gerar com IA
+            </Link>
+          )}
         </header>
 
         {canSeeDev && (
@@ -2317,6 +2327,11 @@ function AttachmentPreviewDialog({
       maxWidth="md"
       className="project-attachment-dialog"
       onClose={onClose}
+      slotProps={{
+        root: {
+          sx: { zIndex: 1400 },
+        },
+      }}
     >
       <DialogContent className="project-attachment-dialog__content">
         <header className="project-attachment-dialog__header">
@@ -2348,17 +2363,23 @@ function AttachmentPreviewBody({
 }) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null)
   const [textContent, setTextContent] = useState<string | null>(null)
+  const [docxHtml, setDocxHtml] = useState<string | null>(null)
   const [loadingFile, setLoadingFile] = useState(false)
   const [fileError, setFileError] = useState('')
 
   const fileType = getAttachmentFileType(attachment)
   const isImage = ['png', 'jpg', 'jpeg', 'gif', 'webp'].includes(fileType)
-  const isText = ['md', 'txt', 'json', 'csv'].includes(fileType) || attachment.mimeType?.startsWith('text/')
+  const isText = ['md', 'txt', 'json', 'csv'].includes(fileType) || Boolean(attachment.mimeType?.startsWith('text/'))
+  const isDocx =
+    fileType === 'docx' ||
+    attachment.mimeType?.includes('wordprocessingml') === true ||
+    attachment.mimeType === 'application/msword'
 
   useEffect(() => {
     if (!attachment.url) {
       setBlobUrl(null)
       setTextContent(null)
+      setDocxHtml(null)
       return
     }
 
@@ -2370,6 +2391,7 @@ function AttachmentPreviewBody({
       setFileError('')
       setBlobUrl(null)
       setTextContent(null)
+      setDocxHtml(null)
 
       try {
         const blob = await fetchAuthenticatedBlob(attachment.url!)
@@ -2381,6 +2403,12 @@ function AttachmentPreviewBody({
         if (isText) {
           const text = await blob.text()
           if (!cancelled) setTextContent(text)
+        }
+
+        if (isDocx) {
+          const mammoth = await import('mammoth')
+          const result = await mammoth.convertToHtml({ arrayBuffer: await blob.arrayBuffer() })
+          if (!cancelled) setDocxHtml(result.value || '<p><em>Documento sem conteúdo textual.</em></p>')
         }
       } catch (err) {
         if (!cancelled) {
@@ -2396,7 +2424,7 @@ function AttachmentPreviewBody({
       cancelled = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [attachment.url, attachment.id, isText])
+  }, [attachment.url, attachment.id, isText, isDocx])
 
   if (!attachment.url) {
     return (
@@ -2470,6 +2498,21 @@ function AttachmentPreviewBody({
     )
   }
 
+  if (isDocx && docxHtml !== null) {
+    return (
+      <div className="project-file-preview project-file-preview--docx">
+        <div
+          className="project-file-preview__docx-body"
+          dangerouslySetInnerHTML={{ __html: docxHtml }}
+        />
+        <div className="project-file-preview__backend-meta">
+          {citationBlock}
+          {downloadLink}
+        </div>
+      </div>
+    )
+  }
+
   if (isText && textContent !== null) {
     return (
       <div className="project-file-preview project-file-preview--code">
@@ -2511,10 +2554,6 @@ function FilesView({
   onOpenAttachment: (attachment: ProjectAttachment) => void
 }) {
   const [selectedAttachment, setSelectedAttachment] = useState<ProjectAttachment | null>(attachments[0] ?? null)
-
-  function selectAttachment(attachment: ProjectAttachment) {
-    setSelectedAttachment(attachment)
-  }
 
   function viewAttachment(attachment: ProjectAttachment) {
     setSelectedAttachment(attachment)
@@ -2561,7 +2600,7 @@ function FilesView({
                 type="button"
                 className="project-file-card__main"
                 aria-pressed={selectedAttachment?.id === attachment.id}
-                onClick={() => selectAttachment(attachment)}
+                onClick={() => viewAttachment(attachment)}
               >
                 <FileIcon type={getAttachmentFileType(attachment)} />
                 <div>

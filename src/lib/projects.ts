@@ -57,14 +57,23 @@ export function getAttachmentFileType(attachment: {
   type?: string
   mimeType?: string
 }) {
-  if (attachment.type) return attachment.type
+  const declared = attachment.type?.trim().toLowerCase()
+  if (declared) return declared
 
-  const extension = attachment.name.split('.').pop()?.toLowerCase()
-  if (extension) return extension
-
-  if (attachment.mimeType?.includes('/')) {
-    return attachment.mimeType.split('/')[1]?.split('+')[0] ?? 'file'
+  const name = attachment.name.trim()
+  const dot = name.lastIndexOf('.')
+  if (dot > 0 && dot < name.length - 1) {
+    return name.slice(dot + 1).toLowerCase()
   }
+
+  const mime = attachment.mimeType?.toLowerCase() ?? ''
+  if (mime.includes('wordprocessingml') || mime === 'application/msword') return 'docx'
+  if (mime.includes('spreadsheetml') || mime.includes('excel')) return 'xlsx'
+  if (mime.includes('presentationml') || mime.includes('powerpoint')) return 'pptx'
+  if (mime === 'application/pdf') return 'pdf'
+  if (mime.startsWith('image/')) return mime.split('/')[1]?.split('+')[0] ?? 'png'
+  if (mime.startsWith('text/')) return mime.split('/')[1]?.split('+')[0] ?? 'txt'
+  if (mime.includes('/')) return mime.split('/')[1]?.split('+')[0] ?? 'file'
 
   return 'file'
 }

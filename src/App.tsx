@@ -4,6 +4,7 @@ import { AppShell } from './components/app-shell'
 import { AuthProvider, useAuth } from './lib/auth'
 import { ProjectStatusProvider } from './lib/project-status'
 import './index.css'
+import AiGeneratorPage from './pages/ai-generator'
 import DashboardPage from './pages/dashboard'
 import LessonsPage from './pages/lessons'
 import LoginPage from './pages/login'
@@ -44,7 +45,9 @@ function App() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/new" element={<ProjectCreatePage />} />
+            <Route path="/projects/:slug/ai-generator" element={<AiGeneratorPage />} />
             <Route path="/projects/:slug" element={<ProjectDetailPage />} />
+            <Route path="/ai-generator" element={<AiGeneratorPage />} />
             <Route path="/lessons" element={<LessonsPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />

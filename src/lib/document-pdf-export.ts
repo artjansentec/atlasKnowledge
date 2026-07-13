@@ -234,25 +234,75 @@ function writeMarkdownBlocks(writer: PdfWriter, blocks: MarkdownBlock[]) {
     }
 
     if (block.type === 'quote') {
-      writeWrappedText(writer, formatCitationText(block.text), {
-        fontStyle: 'italic',
-        indent: 8,
-        spacingBefore: 2,
-        spacingAfter: 2,
-        align: 'justify',
-      })
-      continue
-    }
-
-    if (block.type === 'list') {
-      for (const item of block.items) {
-        writeWrappedText(writer, `• ${formatCitationText(item)}`, {
-          indent: 4,
+      for (const line of block.lines) {
+        if (!line.trim()) continue
+        writeWrappedText(writer, formatCitationText(line), {
+          fontStyle: 'italic',
+          indent: 8,
+          spacingBefore: 1,
           spacingAfter: 1,
           align: 'justify',
         })
       }
+      writer.y += 1
+      continue
+    }
+
+    if (block.type === 'list') {
+      block.items.forEach((item, index) => {
+        const task =
+          item.checked === undefined ? '' : item.checked ? '[x] ' : '[ ] '
+        const marker = block.ordered ? `${index + 1}.` : item.checked !== undefined ? '' : '•'
+        writeWrappedText(
+          writer,
+          `${marker}${marker ? ' ' : ''}${task}${formatCitationText(item.text)}`.trim(),
+          {
+            indent: 4 + item.level * 4,
+            spacingAfter: 1,
+            align: 'justify',
+          },
+        )
+      })
       writer.y += 2
+      continue
+    }
+
+    if (block.type === 'table') {
+      const header = block.headers.map((cell) => formatCitationText(cell)).join(' | ')
+      writeWrappedText(writer, header, {
+        fontStyle: 'bold',
+        spacingBefore: 2,
+        spacingAfter: 1,
+        align: 'left',
+      })
+      for (const row of block.rows) {
+        writeWrappedText(writer, row.map((cell) => formatCitationText(cell)).join(' | '), {
+          spacingAfter: 1,
+          align: 'left',
+        })
+      }
+      writer.y += 2
+      continue
+    }
+
+    if (block.type === 'code') {
+      for (const line of block.code.split('\n')) {
+        writeWrappedText(writer, line || ' ', {
+          indent: 4,
+          spacingAfter: 0.5,
+          align: 'left',
+        })
+      }
+      writer.y += 2
+      continue
+    }
+
+    if (block.type === 'hr') {
+      writer.y += 3
+      writer.pdf.setDrawColor(0, 0, 0)
+      writer.pdf.setLineWidth(0.2)
+      writer.pdf.line(MARGIN_LEFT, writer.y, writer.pageWidth - MARGIN_RIGHT, writer.y)
+      writer.y += 4
       continue
     }
 

@@ -15,6 +15,7 @@ import './app-shell.css'
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/projects', label: 'Projetos', icon: FolderKanban },
+  { to: '/ai-generator', label: 'Gerador IA', icon: Sparkles },
   { to: '/lessons', label: 'Lições', icon: Lightbulb },
   { to: '/search', label: 'Buscar', icon: Search },
 ] as const
@@ -105,15 +106,15 @@ export function AppShell({ children }: { children?: ReactNode }) {
             Sair
           </button>
 
-          <div className="app-shell__ai-card bg-gradient-subtle">
+          <Link to="/ai-generator" className="app-shell__ai-card bg-gradient-subtle">
             <div className="app-shell__ai-label">
               <Sparkles size={12} aria-hidden="true" />
-              IA · em breve
+              IA · beta
             </div>
             <p className="app-shell__ai-text">
-              Transcrições de reuniões gerarão documentação automaticamente.
+              Envie arquivos e gere documentação estruturada automaticamente.
             </p>
-          </div>
+          </Link>
         </div>
       </aside>
 

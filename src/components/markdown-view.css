@@ -10,7 +10,10 @@
 
 .markdown-view h1,
 .markdown-view h2,
-.markdown-view h3 {
+.markdown-view h3,
+.markdown-view h4,
+.markdown-view h5,
+.markdown-view h6 {
   color: var(--text-h);
   line-height: 1.12;
 }
@@ -30,19 +33,94 @@
   font-size: 18px;
 }
 
+.markdown-view h4 {
+  margin: 22px 0 8px;
+  font-size: 16px;
+}
+
+.markdown-view h5,
+.markdown-view h6 {
+  margin: 18px 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
 .markdown-view p {
   margin: 14px 0 0;
 }
 
-.markdown-view ul {
+.markdown-view strong {
+  font-weight: 700;
+  color: var(--text-h);
+}
+
+.markdown-view em {
+  font-style: italic;
+}
+
+.markdown-view del {
+  text-decoration: line-through;
+  color: color-mix(in oklch, var(--foreground) 70%, transparent);
+}
+
+.markdown-view__inline-code {
+  border: 1px solid color-mix(in oklch, var(--foreground) 12%, transparent);
+  border-radius: 6px;
+  padding: 0.1em 0.4em;
+  background: color-mix(in oklch, var(--foreground) 6%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+
+.markdown-view__link {
+  color: var(--doc-primary, var(--primary));
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdown-view__link:hover {
+  text-decoration-thickness: 2px;
+}
+
+.markdown-view ul,
+.markdown-view ol {
   display: grid;
   gap: 8px;
   margin: 14px 0 0;
   padding-left: 22px;
 }
 
+.markdown-view ol {
+  list-style: decimal;
+}
+
 .markdown-view li::marker {
   color: var(--doc-primary, var(--primary));
+}
+
+.markdown-view__list--tasks {
+  list-style: none;
+  padding-left: 0;
+}
+
+.markdown-view__list-item--task {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.markdown-view__task-marker {
+  flex-shrink: 0;
+  margin-top: 0.15em;
+  color: var(--doc-primary, var(--primary));
+  font-size: 0.95em;
+  line-height: 1.4;
+}
+
+.markdown-view__list-item--task.is-checked .markdown-view__list-text {
+  color: color-mix(in oklch, var(--foreground) 72%, transparent);
+  text-decoration: line-through;
 }
 
 .markdown-view blockquote {
@@ -52,6 +130,75 @@
   padding: 14px 16px;
   color: color-mix(in oklch, var(--foreground) 84%, transparent);
   background: rgba(var(--doc-accent-rgb, 56, 173, 72), 0.07);
+}
+
+.markdown-view blockquote > p {
+  margin: 0;
+}
+
+.markdown-view blockquote > p + p {
+  margin-top: 10px;
+}
+
+.markdown-view blockquote > br {
+  display: block;
+  content: '';
+  margin-top: 8px;
+}
+
+.markdown-view__table-wrap {
+  margin: 18px 0 0;
+  overflow-x: auto;
+}
+
+.markdown-view__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95em;
+}
+
+.markdown-view__table th,
+.markdown-view__table td {
+  border: 1px solid color-mix(in oklch, var(--foreground) 14%, transparent);
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown-view__table th {
+  background: color-mix(in oklch, var(--foreground) 5%, transparent);
+  color: var(--text-h);
+  font-weight: 700;
+}
+
+.markdown-view__code-block {
+  position: relative;
+  margin: 18px 0 0;
+  overflow-x: auto;
+  border: 1px solid color-mix(in oklch, var(--foreground) 12%, transparent);
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: color-mix(in oklch, var(--foreground) 4%, transparent);
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+.markdown-view__code-lang {
+  display: block;
+  margin-bottom: 8px;
+  color: color-mix(in oklch, var(--foreground) 55%, transparent);
+  font-size: 0.78em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.markdown-view__hr {
+  margin: 28px 0 0;
+  border: 0;
+  border-top: 1px solid color-mix(in oklch, var(--foreground) 14%, transparent);
 }
 
 .markdown-file-reference,

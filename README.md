@@ -87,6 +87,9 @@ Pesquisa unificada por projetos, seções, lições aprendidas e histórico de a
 ### 💡 Lições aprendidas
 Central com filtros por tipo e busca por título, tags, projeto e responsável.
 
+### 🤖 Gerador de Documentação IA
+Upload de arquivos, escolha de tipos (funcional / técnica) e acompanhamento de jobs de geração.
+
 ### ➕ Criação de projeto
 Formulário com geração de slug, preview visual, dev-responsáveis e documentação inicial em Markdown.
 
@@ -110,6 +113,9 @@ Login integrado à API com três perfis (admin, consultor, desenvolvedor) e regr
 - Gestão visual de seções: criar, renomear, remover e reordenar (documentação e desenvolvimento)
 - Upload real de anexos via `multipart/form-data`, com download autenticado
 - Referências no Markdown com `[[arquivo:nome-do-arquivo]]` e `[[secao:Título da seção]]`
+- Gerador de Documentação IA (`/ai-generator` e `/projects/:slug/ai-generator`)
+- Tipos de documentação: **Funcional** → aba Projeto; **Técnica** → aba Desenvolvimento
+- Aba de jobs em execução com listagem sob demanda (1 carga ao abrir + Atualizar manual)
 - Integração com backend REST via Axios (refresh token automático em `401`)
 - Tipagem completa em TypeScript para projetos, anexos, lições, seções e histórico
 - Componentes reutilizáveis: shell, badges, seletores e visualizador Markdown
@@ -143,6 +149,10 @@ flowchart LR
     C --> D[📄 Detalhe]
     D --> E[📝 Doc / Markdown]
     D --> H[🧑‍💻 Desenvolvimento]
+    B --> I[🤖 Gerador IA]
+    I --> J[📋 Jobs]
+    I --> K[✏️ Revisão]
+    K --> D
     B --> F[💡 Lições]
     B --> G[🔍 Busca global]
 ```
@@ -151,14 +161,15 @@ flowchart LR
 2. **Dashboard** — visão geral da base de conhecimento
 3. **Projetos** — filtro por status ou busca por termos
 4. **Detalhe** — documentação, desenvolvimento, anexos, lições e histórico
-5. **Edição** — atualização de seções com preview antes de salvar (conforme permissão)
-6. **Descoberta** — lições aprendidas e busca global para reutilizar conhecimento
+5. **Gerador IA** — envio de arquivos, escolha de tipos e jobs ativos
+6. **Edição** — atualização de seções com preview antes de salvar (conforme permissão)
+7. **Descoberta** — lições aprendidas e busca global para reutilizar conhecimento
 
 ---
 
 ## 📍 Fase atual
 
-O front-end está com a **experiência completa modelada e integrada ao contrato de API REST**. Nesta etapa, além dos fluxos base de wiki, foram adicionados os **três perfis de usuário**, a **aba de Desenvolvimento** e o **status dinâmico de projeto**. O foco agora é a **implementação do backend** seguindo o contrato descrito em [`BACKEND_API.md`](BACKEND_API.md).
+O front-end está com a **experiência completa modelada e integrada ao contrato de API REST**. Nesta etapa, além dos fluxos base de wiki, perfis e aba de Desenvolvimento, foi adicionado o **Gerador de Documentação com IA** (envio e jobs). O foco continua sendo a **evolução do backend** conforme [`BACKEND_API.md`](BACKEND_API.md).
 
 | Área | Status |
 |------|--------|
@@ -170,11 +181,14 @@ O front-end está com a **experiência completa modelada e integrada ao contrato
 | Status de projeto dinâmico com cores | ✅ Implementado (com fallback) |
 | CRUD de projetos e documentos | ✅ Via backend |
 | Upload de anexos | ✅ Implementado (projeto e dev) |
+| Gerador de Documentação IA | ✅ Implementado no front |
+| Jobs de geração (listar / cancelar / atualizar) | ✅ Implementado |
+| Revisão e publicação pós-IA | ✅ Implementado |
 | Busca e filtros | ✅ No cliente |
 | Leitura e edição Markdown | ✅ Funcional |
 | Implementação do backend | ⏳ Em andamento (contrato definido) |
 | Auditoria completa | ⏳ Pendente |
-| Sugestões com IA | 🔮 Planejado |
+| Regeneração por seção / sugestões contínuas | 🔮 Planejado |
 
 ---
 
@@ -182,13 +196,27 @@ O front-end está com a **experiência completa modelada e integrada ao contrato
 
 Melhorias incorporadas na etapa atual do projeto:
 
-- **Três perfis de usuário** — `admin`, `consultor` e `desenvolvedor`, com normalização de papéis legados e helpers de permissão (`canViewDev`, `canManageProject`, `canManageDevProject`).
-- **Aba de Desenvolvimento** — seções (`devSections`) e anexos (`devAttachments`) técnicos, separados da documentação e visíveis só para admin/desenvolvedor, com rotas espelhadas na API.
-- **Dev-responsáveis** — novo seletor com múltipla escolha (`DevResponsibleSelect`) na criação e edição do projeto; apenas dev-responsáveis editam a aba técnica.
-- **Status de projeto dinâmico** — quatro status (`active`, `paused`, `done`, `cancelled`) com rótulos e cores carregados de `GET /project-statuses`, com fallback local caso a rota falhe.
-- **Upload real de anexos** — envio via `multipart/form-data` e download autenticado, tanto na aba Projeto quanto na de Desenvolvimento.
-- **Citações cruzadas no Markdown** — referências a seções (`[[secao:Título]]`) e arquivos (`[[arquivo:nome]]`) resolvidas no visualizador.
-- **Contrato de API documentado** — todas as rotas, modelos e regras de autorização em [`BACKEND_API.md`](BACKEND_API.md).
+### Gerador de Documentação IA
+
+- **Tela de geração** — disponível no menu (`/ai-generator`) e a partir do detalhe do projeto (`/projects/:slug/ai-generator`).
+- **Upload de arquivos** — envio em lote (PDF, Word, Markdown, áudio, planilhas, imagens, etc.) com validação de tipo e tamanho.
+- **Tipos de documentação unificados**:
+  - **Documentação Funcional** → publica na **aba Projeto** (`sections`)
+  - **Documentação Técnica** → publica na **aba Desenvolvimento** (`dev-sections`) — é o conteúdo técnico da Wiki; não há tipo separado “Aba Desenvolvimento”
+- **Idioma** — português, inglês ou espanhol no pedido de geração.
+- **Projeto destino** — criar projeto novo (admin) ou selecionar um existente; no fluxo por slug o projeto já vem fixado.
+- **Jobs em execução** — aba para listar processamentos ativos, cancelar jobs e **atualizar sob demanda** (uma requisição ao abrir a aba; novas buscas só ao clicar em Atualizar).
+- **Cliente de API** — `src/lib/documentation-api.ts` cobre generate, poll do job, listagem, cancelamento e leitura da documentação gerada.
+
+### Base já entregue
+
+- **Três perfis de usuário** — `admin`, `consultor` e `desenvolvedor`, com helpers de permissão (`canViewDev`, `canManageProject`, `canManageDevProject`).
+- **Aba de Desenvolvimento** — seções e anexos técnicos separados da documentação funcional.
+- **Dev-responsáveis** — seletor com múltipla escolha na criação e edição do projeto.
+- **Status dinâmico** — `active`, `paused`, `done`, `cancelled` via `GET /project-statuses` (com fallback).
+- **Upload de anexos** — `multipart/form-data` e download autenticado (projeto e desenvolvimento).
+- **Citações cruzadas no Markdown** — `[[secao:Título]]` e `[[arquivo:nome]]`.
+- **Contrato de API** — rotas e regras em [`BACKEND_API.md`](BACKEND_API.md).
 
 ---
 
@@ -220,15 +248,20 @@ Melhorias incorporadas na etapa atual do projeto:
 ```
 src/
 ├── components/                 # Shell, Markdown, badges e seletores
+│   ├── app-shell.tsx               # Menu (inclui Gerador IA)
 │   ├── dev-responsible-select.tsx  # Seletor de dev-responsáveis
 │   ├── status-badge.tsx            # Badge de status com cores dinâmicas
 │   └── markdown-view.tsx           # Leitor/editor Markdown com citações
 ├── lib/                        # API, auth, tipos e funções de projetos
 │   ├── auth.tsx                    # Contexto de sessão e permissões por perfil
+│   ├── documentation-api.ts        # Generate / jobs / documentação IA
 │   ├── project-status.tsx          # Provider de status (API + fallback)
 │   ├── projects.ts                 # Tipos e modelos do domínio
 │   └── projects-api.ts             # Chamadas REST (projetos, seções, anexos)
-├── pages/                      # Dashboard, projetos, lições, busca, login
+├── pages/
+│   ├── ai-generator.tsx            # Geração + jobs em execução
+│   ├── project-detail.tsx          # Detalhe (atalho para o gerador)
+│   └── ...                         # Dashboard, projetos, lições, busca, login
 ├── pages/css/                  # Estilos específicos de cada tela
 ├── assets/                     # Logo, hero e recursos visuais
 ├── App.tsx                     # Rotas e layout protegido
@@ -253,6 +286,7 @@ Pontos principais:
 - **Autenticação** com access token JWT (`Authorization: Bearer`) e refresh token em cookie httpOnly; o front refaz a requisição automaticamente após um `401`.
 - **Perfis e autorização** aplicados no servidor — o front apenas esconde botões.
 - **Rotas espelhadas** para documentação (`sections`) e desenvolvimento (`dev-sections`), o mesmo valendo para anexos.
+- **Geração com IA** — `POST /projects/:slug/documentation/generate`, acompanhamento em `/documentation/jobs`, cancelamento e leitura em `/projects/:slug/documentation`.
 - **Resiliência** — `GET /project-statuses` tem fallback local, então a UI segue funcionando mesmo sem o endpoint.
 
 ---
@@ -305,14 +339,16 @@ A aplicação estará disponível em `http://localhost:5173`.
 - [x] Aba de Desenvolvimento com seções e anexos próprios
 - [x] Status de projeto dinâmico com cores da API
 - [x] Upload real de anexos
+- [x] Gerador de Documentação IA (upload e jobs)
+- [x] Documentação Técnica alimentando a aba Desenvolvimento
 - [ ] Implementação do backend conforme `BACKEND_API.md`
 - [ ] Auditoria completa de alterações
 - [ ] Ranking de busca por relevância
 - [ ] Filtros avançados por responsável, status e área
-- [ ] Sugestões automáticas com IA
+- [ ] Regeneração por seção e sugestões contínuas com IA
 - [ ] Templates de documentação por tipo de projeto
 - [ ] Métricas de uso por área
-- [ ] Geração de documentação a partir de transcrições de reuniões
+- [ ] Geração a partir de transcrições de reuniões (aprimorar pipeline atual)
 
 ---
 

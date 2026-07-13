@@ -172,9 +172,13 @@ export async function fetchAuthenticatedBlob(fileUrl: string): Promise<Blob> {
   try {
     const response = await apiClient.get<Blob>(resolveApiUrl(fileUrl), {
       responseType: 'blob',
+      headers: {
+        Accept: '*/*',
+      },
     })
     return response.data
   } catch (error) {
+    if (error instanceof ApiError) throw error
     throw toApiError(error)
   }
 }

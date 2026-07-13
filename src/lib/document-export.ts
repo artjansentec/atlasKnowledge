@@ -1,5 +1,6 @@
 import {
   AlignmentType,
+  BorderStyle,
   Document,
   Footer,
   InternalHyperlink,
@@ -9,8 +10,12 @@ import {
   PageBreak,
   PageNumber,
   Paragraph,
+  Table,
+  TableCell,
+  TableRow,
   Tab,
   TextRun,
+  WidthType,
   Bookmark,
   PageReference,
   TabStopType,
@@ -18,7 +23,13 @@ import {
   type FileChild,
 } from 'docx'
 import { formatDateBR } from './date'
-import { formatCitationText, parseMarkdown, type MarkdownBlock } from './markdown'
+import {
+  formatCitationText,
+  parseInlineMarkdown,
+  parseMarkdown,
+  type MarkdownBlock,
+  type MarkdownListItem,
+} from './markdown'
 import type { DocumentExportPayload, DocumentExportSection } from './document-export-types'
 import {
   ABNT_BLACK,
@@ -49,6 +60,7 @@ function blackText(
   options: {
     bold?: boolean
     italics?: boolean
+    strike?: boolean
     size?: number
   } = {},
 ) {
@@ -58,6 +70,7 @@ function blackText(
     size: options.size ?? ABNT_FONT_SIZE,
     bold: options.bold,
     italics: options.italics,
+    strike: options.strike,
     color: ABNT_BLACK,
   })
 }
@@ -155,7 +168,87 @@ function sectionHeadingParagraph(title: string, depth: number, bookmarkId: strin
   })
 }
 
-function markdownHeadingParagraph(level: 1 | 2 | 3, text: string, sectionDepth: number) {
+function inlineRuns(
+  text: string,
+  options: { bold?: boolean; italics?: boolean; strike?: boolean; size?: number } = {},
+) {
+  return flattenInlineRuns(parseInlineMarkdown(text), options)
+}
+
+function flattenInlineRuns(
+  segments: ReturnType<typeof parseInlineMarkdown>,
+  options: { bold?: boolean; italics?: boolean; strike?: boolean; size?: number } = {},
+): TextRun[] {
+  return segments.flatMap((segment) => {
+    if (segment.type === 'text') {
+      return [blackText(segment.text, options)]
+    }
+
+    if (segment.type === 'code') {
+      return [
+        new TextRun({
+          text: segment.text,
+          font: 'Courier New',
+          size: (options.size ?? ABNT_FONT_SIZE) - 2,
+          color: ABNT_BLACK,
+        }),
+      ]
+    }
+
+    if (segment.type === 'citation') {
+      const label =
+        segment.kind === 'arquivo'
+          ? `[Arquivo: ${segment.key}]`
+          : `[Seção: ${segment.key}]`
+      return [blackText(label, options)]
+    }
+
+    if (segment.type === 'link') {
+      const plain = flattenInlineTextLabel(segment.children)
+      const display = plain && plain !== segment.href ? `${plain} (${segment.href})` : segment.href
+      return [blackText(display, { ...options, italics: true })]
+    }
+
+    if (segment.type === 'bold') {
+      return flattenInlineRuns(segment.children, { ...options, bold: true })
+    }
+
+    if (segment.type === 'italic') {
+      return flattenInlineRuns(segment.children, { ...options, italics: true })
+    }
+
+    if (segment.type === 'boldItalic') {
+      return flattenInlineRuns(segment.children, { ...options, bold: true, italics: true })
+    }
+
+    if (segment.type === 'strike') {
+      return flattenInlineRuns(segment.children, { ...options, strike: true })
+    }
+
+    return []
+  })
+}
+
+function flattenInlineTextLabel(segments: ReturnType<typeof parseInlineMarkdown>): string {
+  return segments
+    .map((segment) => {
+      if (segment.type === 'text' || segment.type === 'code') return segment.text
+      if (segment.type === 'citation') {
+        return segment.kind === 'arquivo'
+          ? `[Arquivo: ${segment.key}]`
+          : `[Seção: ${segment.key}]`
+      }
+      if (segment.type === 'link') return flattenInlineTextLabel(segment.children)
+      return flattenInlineTextLabel(segment.children)
+    })
+    .join('')
+}
+
+function markdownHeadingParagraph(
+  level: 1 | 2 | 3 | 4 | 5 | 6,
+  text: string,
+  sectionDepth: number,
+) {
   const content = formatCitationText(text)
 
   return new Paragraph({
@@ -165,7 +258,7 @@ function markdownHeadingParagraph(level: 1 | 2 | 3, text: string, sectionDepth: 
     children: [
       blackText(level === 1 ? content.toUpperCase() : titleCase(content), {
         bold: true,
-        italics: level === 3,
+        italics: level >= 3,
       }),
     ],
   })
@@ -175,33 +268,120 @@ function markdownParagraph(text: string) {
   return new Paragraph({
     alignment: AlignmentType.JUSTIFIED,
     spacing: { after: 200, line: ABNT_LINE_SPACING },
-    children: [blackText(formatCitationText(text))],
+    children: inlineRuns(text),
   })
 }
 
-function markdownQuote(text: string) {
-  return new Paragraph({
-    alignment: AlignmentType.JUSTIFIED,
-    indent: { left: convertInchesToTwip(0.5) },
-    spacing: { after: 200, line: ABNT_LINE_SPACING },
-    children: [blackText(formatCitationText(text), { italics: true })],
+function markdownQuote(lines: string[]) {
+  return lines
+    .filter((line) => line.trim())
+    .map(
+      (line) =>
+        new Paragraph({
+          alignment: AlignmentType.JUSTIFIED,
+          indent: { left: convertInchesToTwip(0.5) },
+          spacing: { after: 120, line: ABNT_LINE_SPACING },
+          children: inlineRuns(line, { italics: true }),
+        }),
+    )
+}
+
+function markdownList(items: MarkdownListItem[], ordered: boolean) {
+  return items.map((item, index) => {
+    const taskPrefix =
+      item.checked === undefined ? '' : item.checked ? '[x] ' : '[ ] '
+    const numberPrefix = ordered ? `${index + 1}. ` : ''
+    const useBullets = !ordered && item.checked === undefined
+
+    return new Paragraph({
+      alignment: AlignmentType.JUSTIFIED,
+      spacing: { after: 120, line: ABNT_LINE_SPACING },
+      indent: {
+        left: convertInchesToTwip((ordered ? 0.35 : 0) + item.level * 0.25),
+      },
+      ...(useBullets ? { numbering: { reference: 'abnt-bullets', level: 0 } } : {}),
+      children: [
+        ...(numberPrefix || taskPrefix ? [blackText(`${numberPrefix}${taskPrefix}`)] : []),
+        ...inlineRuns(item.text),
+      ],
+    })
   })
 }
 
-function markdownList(items: string[]) {
-  return items.map(
-    (item) =>
+function markdownTable(headers: string[], rows: string[][]) {
+  const border = {
+    style: BorderStyle.SINGLE,
+    size: 4,
+    color: '000000',
+  }
+  const borders = { top: border, bottom: border, left: border, right: border }
+
+  const headerRow = new TableRow({
+    children: headers.map(
+      (header) =>
+        new TableCell({
+          borders,
+          width: { size: Math.floor(9000 / Math.max(headers.length, 1)), type: WidthType.DXA },
+          children: [
+            new Paragraph({
+              children: inlineRuns(header, { bold: true }),
+            }),
+          ],
+        }),
+    ),
+  })
+
+  const bodyRows = rows.map(
+    (row) =>
+      new TableRow({
+        children: headers.map((_, cellIndex) => {
+          const cell = row[cellIndex] ?? ''
+          return new TableCell({
+            borders,
+            width: { size: Math.floor(9000 / Math.max(headers.length, 1)), type: WidthType.DXA },
+            children: [new Paragraph({ children: inlineRuns(cell) })],
+          })
+        }),
+      }),
+  )
+
+  return new Table({
+    width: { size: 9000, type: WidthType.DXA },
+    rows: [headerRow, ...bodyRows],
+  })
+}
+
+function markdownCode(code: string) {
+  return code.split('\n').map(
+    (line) =>
       new Paragraph({
-        alignment: AlignmentType.JUSTIFIED,
-        spacing: { after: 120, line: ABNT_LINE_SPACING },
-        numbering: { reference: 'abnt-bullets', level: 0 },
-        children: [blackText(formatCitationText(item))],
+        alignment: AlignmentType.LEFT,
+        spacing: { after: 40, line: ABNT_LINE_SPACING },
+        indent: { left: convertInchesToTwip(0.25) },
+        children: [
+          new TextRun({
+            text: line || ' ',
+            font: 'Courier New',
+            size: ABNT_FONT_SIZE - 2,
+            color: ABNT_BLACK,
+          }),
+        ],
       }),
   )
 }
 
+function markdownHr() {
+  return new Paragraph({
+    spacing: { before: 200, after: 200 },
+    border: {
+      bottom: { style: BorderStyle.SINGLE, size: 6, color: '000000', space: 1 },
+    },
+    children: [],
+  })
+}
+
 function blocksToDocxParagraphs(blocks: MarkdownBlock[], sectionDepth: number) {
-  const paragraphs: Paragraph[] = []
+  const paragraphs: FileChild[] = []
 
   for (const block of blocks) {
     if (block.type === 'heading') {
@@ -210,12 +390,27 @@ function blocksToDocxParagraphs(blocks: MarkdownBlock[], sectionDepth: number) {
     }
 
     if (block.type === 'quote') {
-      paragraphs.push(markdownQuote(block.text))
+      paragraphs.push(...markdownQuote(block.lines))
       continue
     }
 
     if (block.type === 'list') {
-      paragraphs.push(...markdownList(block.items))
+      paragraphs.push(...markdownList(block.items, block.ordered))
+      continue
+    }
+
+    if (block.type === 'table') {
+      paragraphs.push(markdownTable(block.headers, block.rows))
+      continue
+    }
+
+    if (block.type === 'code') {
+      paragraphs.push(...markdownCode(block.code))
+      continue
+    }
+
+    if (block.type === 'hr') {
+      paragraphs.push(markdownHr())
       continue
     }
 

@@ -2,6 +2,7 @@ import { apiRequest } from './api'
 import {
   normalizeAttachment,
   type Project,
+  type ProjectAttachment,
   type ProjectLesson,
   type ProjectStatus,
   type ProjectStatusMeta,
@@ -127,7 +128,7 @@ export function normalizeDashboardSummary(
   raw: Partial<DashboardSummary> | null | undefined,
 ): DashboardSummary {
   const recentUpdates = (raw?.recentUpdates ?? []).map(normalizeDashboardUpdate)
-  const recentProjects = raw?.recentProjects ?? []
+  const recentProjects = (raw?.recentProjects ?? []).map(normalizeProjectListItem)
 
   let updateCount = raw?.updateCount
   if (typeof updateCount !== 'number') {
@@ -218,20 +219,35 @@ export async function listProjects(filters?: {
   if (filters?.responsible) params.set('responsible', filters.responsible)
 
   const query = params.toString()
-  return apiRequest<ProjectListItem[]>(query ? `/projects?${query}` : '/projects')
+  const projects = await apiRequest<ProjectListItem[]>(query ? `/projects?${query}` : '/projects')
+  return projects.map(normalizeProjectListItem)
+}
+
+function normalizeProjectAttachment(attachment: ProjectAttachment): ProjectAttachment {
+  return normalizeAttachment(attachment)
 }
 
 export function normalizeProject(raw: Project): Project {
   return {
     ...raw,
+    tags: raw.tags ?? [],
+    tech: raw.tech ?? [],
     devResponsibles: raw.devResponsibles ?? [],
     devResponsibleIds: raw.devResponsibleIds ?? [],
     sections: raw.sections ?? [],
     devSections: raw.devSections ?? [],
-    attachments: raw.attachments ?? [],
-    devAttachments: raw.devAttachments ?? [],
+    attachments: (raw.attachments ?? []).map(normalizeProjectAttachment),
+    devAttachments: (raw.devAttachments ?? []).map(normalizeProjectAttachment),
     lessons: raw.lessons ?? [],
     history: raw.history ?? [],
+  }
+}
+
+export function normalizeProjectListItem(raw: ProjectListItem): ProjectListItem {
+  return {
+    ...raw,
+    tags: raw.tags ?? [],
+    tech: raw.tech ?? [],
   }
 }
 

@@ -190,9 +190,9 @@ function ProjectsPage() {
                     </span>
                   </div>
 
-                  {project.tags.length > 0 && (
+                  {(project.tags?.length ?? 0) > 0 && (
                     <div className="project-card__footer">
-                      <span>{project.tags.slice(0, 3).map((tag) => `#${tag}`).join(' ')}</span>
+                      <span>{(project.tags ?? []).slice(0, 3).map((tag) => `#${tag}`).join(' ')}</span>
                     </div>
                   )}
                 </Link>
