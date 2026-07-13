@@ -74,8 +74,6 @@ const ACCEPTED_LABELS = [
   'JPEG',
 ]
 
-type Lang = 'pt' | 'en' | 'es'
-
 interface DocType {
   id: string
   title: string
@@ -196,7 +194,6 @@ function AiGeneratorPage() {
   const [description, setDescription] = useState('')
   const [files, setFiles] = useState<UploadedFile[]>([])
   const [dragOver, setDragOver] = useState(false)
-  const [language, setLanguage] = useState<Lang>('pt')
   const [selectedTypes, setSelectedTypes] = useState<string[]>(['funcional', 'tecnica'])
   const [running, setRunning] = useState(false)
   const [done, setDone] = useState(false)
@@ -478,7 +475,7 @@ function AiGeneratorPage() {
         projectName: target.name,
         description: target.description,
         files: files.map((item) => item.file),
-        language,
+        language: 'pt',
         docTypes: selectedTypes,
       })
 
@@ -881,19 +878,6 @@ function AiGeneratorPage() {
             <p>Como a documentação deve ser produzida.</p>
           </header>
           <div className="ai-generator-card__body">
-            <label className="ai-generator-field ai-generator-field--narrow">
-              <span>Idioma</span>
-              <AtlasSelect
-                value={language}
-                onChange={(value) => setLanguage(value as Lang)}
-                options={[
-                  { value: 'pt', label: 'Português' },
-                  { value: 'en', label: 'Inglês' },
-                  { value: 'es', label: 'Espanhol' },
-                ]}
-              />
-            </label>
-
             <div>
               <div className="ai-generator__types-label">Tipo de documentação</div>
               <div className="ai-generator__types">
