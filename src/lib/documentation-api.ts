@@ -16,6 +16,7 @@ export type ActiveDocumentationJob = {
   status: string
   progress: number
   current_step: string
+  message?: string
   project_id: string
   project_slug: string
   project_name: string

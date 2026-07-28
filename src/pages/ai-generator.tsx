@@ -121,18 +121,87 @@ interface UploadedFile {
 
 type StepStatus = 'waiting' | 'running' | 'done' | 'error'
 
-const STEPS = [
-  'Recebendo arquivos',
-  'Extraindo conteúdo',
-  'Processando documentos',
-  'Analisando contexto',
-  'Gerando documentação',
-  'Finalizando',
-]
+const MNEMOS_STEPS = [
+  'RECEIVED',
+  'VALIDATING',
+  'EXTRACTING',
+  'OCR',
+  'TRANSCRIBING',
+  'BUILDING_CONTEXT',
+  'READING_CHUNKS',
+  'BUILDING_PROMPT',
+  'GENERATING',
+  'VALIDATING_RESPONSE',
+] as const
+
+type MnemosStep = (typeof MNEMOS_STEPS)[number]
+
+const MNEMOS_STEP_LABELS: Record<MnemosStep, string> = {
+  RECEIVED: 'Recebendo arquivos',
+  VALIDATING: 'Validando',
+  EXTRACTING: 'Extraindo conteúdo',
+  OCR: 'OCR (reconhecimento de texto em imagem)',
+  TRANSCRIBING: 'Transcrevendo áudio',
+  BUILDING_CONTEXT: 'Construindo contexto',
+  READING_CHUNKS: 'Lendo em chunks',
+  BUILDING_PROMPT: 'Montando prompt',
+  GENERATING: 'Gerando documentação',
+  VALIDATING_RESPONSE: 'Validando resposta',
+}
+
+const AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'm4a', 'ogg', 'flac'])
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg'])
 
 type ProjectMode = 'existing' | 'new'
 type GeneratorView = 'generate' | 'jobs'
 
+function fileExtension(name: string) {
+  return name.split('.').pop()?.toLowerCase() ?? ''
+}
+
+function needsOcrFromNames(fileNames: string[]) {
+  return fileNames.some((name) => IMAGE_EXTENSIONS.has(fileExtension(name)))
+}
+
+function needsTranscribingFromNames(fileNames: string[]) {
+  return fileNames.some((name) => AUDIO_EXTENSIONS.has(fileExtension(name)))
+}
+
+/** OCR só com imagens; TRANSCRIBING só com áudio. */
+function visibleMnemosSteps(fileNames: string[], currentStep?: string | null): MnemosStep[] {
+  const includeOcr = needsOcrFromNames(fileNames)
+  const includeTranscribing = needsTranscribingFromNames(fileNames)
+  const filtered = MNEMOS_STEPS.filter((step) => {
+    if (step === 'OCR') return includeOcr
+    if (step === 'TRANSCRIBING') return includeTranscribing
+    return true
+  })
+
+  // Se o poll reportar uma fase filtrada, mantém na UI até passar.
+  if (currentStep && isMnemosStep(currentStep) && !filtered.includes(currentStep)) {
+    return MNEMOS_STEPS.filter((step) => filtered.includes(step) || step === currentStep)
+  }
+
+  return filtered
+}
+
+function isMnemosStep(step: string): step is MnemosStep {
+  return (MNEMOS_STEPS as readonly string[]).includes(step)
+}
+
+function mnemosStepIndex(step?: string | null) {
+  if (!step || !isMnemosStep(step)) return -1
+  return MNEMOS_STEPS.indexOf(step)
+}
+
+function mnemosStepLabel(step?: string | null, message?: string | null) {
+  if (message?.trim()) return message.trim()
+  if (!step) return ''
+  if (isMnemosStep(step)) return MNEMOS_STEP_LABELS[step]
+  return step
+}
+
+/** Estado grosso do Atlas (fila / vivo / acabou). Não trata PROCESSING como fase única do Mnemos. */
 function statusLabel(status: string) {
   switch (status.toUpperCase()) {
     case 'PENDING':
@@ -156,6 +225,13 @@ function statusLabel(status: string) {
   }
 }
 
+function jobListSubtitle(job: { status: string; current_step?: string; message?: string }) {
+  const atlas = statusLabel(job.status)
+  const phase = mnemosStepLabel(job.current_step, job.message)
+  if (!phase || phase === atlas) return atlas
+  return `${atlas} · ${phase}`
+}
+
 function formatJobTime(value?: string) {
   if (!value) return '—'
   try {
@@ -175,9 +251,9 @@ function formatSize(bytes: number) {
 }
 
 function iconForFile(name: string) {
-  const ext = name.split('.').pop()?.toLowerCase() ?? ''
-  if (['mp3', 'wav', 'm4a', 'ogg', 'flac'].includes(ext)) return FileAudio
-  if (['png', 'jpg', 'jpeg'].includes(ext)) return FileImage
+  const ext = fileExtension(name)
+  if (AUDIO_EXTENSIONS.has(ext)) return FileAudio
+  if (IMAGE_EXTENSIONS.has(ext)) return FileImage
   if (['csv', 'xlsx'].includes(ext)) return FileSpreadsheet
   if (['md', 'markdown', 'txt'].includes(ext)) return FileType2
   if (['pdf', 'doc', 'docx', 'pptx'].includes(ext)) return FileText
@@ -198,6 +274,8 @@ function AiGeneratorPage() {
   const [running, setRunning] = useState(false)
   const [done, setDone] = useState(false)
   const [stepIdx, setStepIdx] = useState(-1)
+  const [progressPct, setProgressPct] = useState(0)
+  const [stepMessage, setStepMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [confirmRemove, setConfirmRemove] = useState<UploadedFile | null>(null)
   const [projects, setProjects] = useState<ProjectListItem[]>([])
@@ -217,6 +295,14 @@ function AiGeneratorPage() {
   const inputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const jobsRefreshCooldownRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const pipelineSteps = useMemo(() => {
+    const currentStep = stepIdx >= 0 && stepIdx < MNEMOS_STEPS.length ? MNEMOS_STEPS[stepIdx] : null
+    return visibleMnemosSteps(
+      files.map((item) => item.file.name),
+      currentStep,
+    )
+  }, [files, stepIdx])
 
   useEffect(() => {
     document.title = 'Gerador de Documentação IA · Atlas Knowledge'
@@ -461,6 +547,8 @@ function AiGeneratorPage() {
     setRunning(true)
     setDone(false)
     setStepIdx(0)
+    setProgressPct(0)
+    setStepMessage(MNEMOS_STEP_LABELS.RECEIVED)
 
     abortRef.current?.abort()
     const controller = new AbortController()
@@ -469,7 +557,9 @@ function AiGeneratorPage() {
     try {
       const target = await resolveTargetSlug()
       setResolvedSlug(target.slug)
-      setStepIdx(1)
+      setStepIdx(mnemosStepIndex('VALIDATING'))
+      setStepMessage(MNEMOS_STEP_LABELS.VALIDATING)
+      setProgressPct(5)
 
       const job = await generateDocumentation(target.slug, {
         projectName: target.name,
@@ -482,18 +572,27 @@ function AiGeneratorPage() {
       const jobId = job.job_id
       if (!jobId) throw new Error('A API não retornou job_id.')
 
-      setStepIdx(2)
+      const applyJobTick = (status: typeof job) => {
+        const idx = mnemosStepIndex(status.current_step)
+        if (idx >= 0) setStepIdx(idx)
+        setStepMessage(mnemosStepLabel(status.current_step, status.message) || null)
+        if (typeof status.progress === 'number' && Number.isFinite(status.progress)) {
+          setProgressPct(Math.max(0, Math.min(100, Math.round(status.progress))))
+        }
+      }
+
+      applyJobTick(job)
 
       await pollDocumentationJob(jobId, {
         signal: controller.signal,
-        onTick: (_status, elapsedMs) => {
-          if (elapsedMs < 8000) setStepIdx(3)
-          else if (elapsedMs < 20000) setStepIdx(4)
-          else setStepIdx(4)
+        onTick: (status) => {
+          applyJobTick(status)
         },
       })
 
-      setStepIdx(STEPS.length)
+      setStepIdx(MNEMOS_STEPS.length)
+      setProgressPct(100)
+      setStepMessage(null)
       setDone(true)
       showToast('Documentação gerada com sucesso')
     } catch (err) {
@@ -501,6 +600,8 @@ function AiGeneratorPage() {
       const message = err instanceof Error ? err.message : 'Falha ao gerar documentação.'
       setError(message)
       setStepIdx(-1)
+      setProgressPct(0)
+      setStepMessage(null)
       setDone(false)
       showToast(message, 'error')
     } finally {
@@ -520,12 +621,11 @@ function AiGeneratorPage() {
     abortRef.current?.abort()
     setDone(false)
     setStepIdx(-1)
+    setProgressPct(0)
+    setStepMessage(null)
     setRunning(false)
     setError(null)
   }
-
-  const progressPct =
-    stepIdx < 0 ? 0 : Math.min(100, Math.round(((stepIdx + (running ? 0.5 : 1)) / STEPS.length) * 100))
 
   if (loadingProject) {
     return (
@@ -643,20 +743,26 @@ function AiGeneratorPage() {
                 </div>
               ) : (
                 <ul className="ai-generator__jobs">
-                  {activeJobs.map((job) => (
-                    <li key={job.job_id} className="ai-generator__job">
+                  {activeJobs.map((job, jobIndex) => (
+                    <li
+                      key={job.job_id}
+                      className="ai-generator__job is-live"
+                      style={{ ['--job-i' as string]: jobIndex }}
+                    >
                       <div className="ai-generator__job-top">
                         <div>
                           <strong>{job.project_name || job.project_slug}</strong>
-                          <p>
-                            {statusLabel(job.status)}
-                            {job.current_step ? ` · ${job.current_step}` : ''}
-                          </p>
+                          <p>{jobListSubtitle(job)}</p>
                         </div>
-                        <span className="ai-generator__job-badge">{Math.max(0, Math.min(100, job.progress))}%</span>
+                        <span className="ai-generator__job-badge">
+                          {Math.max(0, Math.min(100, job.progress))}%
+                        </span>
                       </div>
-                      <div className="ai-generator__progress-track">
-                        <div style={{ width: `${Math.max(0, Math.min(100, job.progress))}%` }} />
+                      <div className="ai-generator__progress-track is-live">
+                        <div
+                          className="ai-generator__progress-fill"
+                          style={{ width: `${Math.max(0, Math.min(100, job.progress))}%` }}
+                        />
                       </div>
                       <div className="ai-generator__job-meta">
                         <span>{job.file_count} arquivo(s)</span>
@@ -918,37 +1024,55 @@ function AiGeneratorPage() {
         </button>
 
         {(running || done) && (
-          <section className="ai-generator-card">
+          <section
+            className={`ai-generator-card ai-generator-card--pipeline${done ? ' is-done' : ' is-live'}`}
+          >
             <header className="ai-generator-card__header">
               <h2>{done ? 'Processamento concluído' : 'Processando'}</h2>
-              <p>{done ? 'Sua documentação está pronta.' : 'Aguarde enquanto a IA analisa os arquivos.'}</p>
+              <p key={done ? 'done' : stepMessage || 'idle'} className="ai-generator__pipeline-subtitle">
+                {done
+                  ? 'Sua documentação está pronta.'
+                  : stepMessage || 'Aguarde enquanto a IA analisa os arquivos.'}
+              </p>
             </header>
             <div className="ai-generator-card__body">
               {!done && (
-                <div className="ai-generator__progress">
+                <div className="ai-generator__progress is-live">
                   <div className="ai-generator__progress-meta">
                     <span>Progresso</span>
-                    <span>{progressPct}%</span>
+                    <span className="ai-generator__progress-pct">{progressPct}%</span>
                   </div>
                   <div className="ai-generator__progress-track">
-                    <div style={{ width: `${progressPct}%` }} />
+                    <div
+                      className="ai-generator__progress-fill"
+                      style={{ width: `${progressPct}%` }}
+                    />
                   </div>
                 </div>
               )}
 
               <ol className="ai-generator__steps">
-                {STEPS.map((label, index) => {
+                {pipelineSteps.map((step, index) => {
+                  const fullIdx = MNEMOS_STEPS.indexOf(step)
+                  const label = MNEMOS_STEP_LABELS[step]
                   let status: StepStatus = 'waiting'
-                  if (done || index < stepIdx) status = 'done'
-                  else if (index === stepIdx) status = running ? 'running' : 'done'
+                  if (done || fullIdx < stepIdx) status = 'done'
+                  else if (fullIdx === stepIdx) status = running ? 'running' : 'done'
+                  const displayLabel = status === 'running' && stepMessage ? stepMessage : label
                   return (
-                    <li key={label} className={`ai-generator__step is-${status}`}>
-                      <span className="ai-generator__step-icon">
-                        {status === 'done' && <Check size={16} aria-hidden="true" />}
-                        {status === 'running' && <Loader2 size={16} className="ai-generator__spin" aria-hidden="true" />}
-                        {status === 'waiting' && <CircleDashed size={16} aria-hidden="true" />}
+                    <li
+                      key={step}
+                      className={`ai-generator__step is-${status}`}
+                      style={{ ['--step-i' as string]: index }}
+                    >
+                      <span className="ai-generator__step-icon" aria-hidden="true">
+                        {status === 'done' && <Check size={16} />}
+                        {status === 'running' && <Loader2 size={16} className="ai-generator__spin" />}
+                        {status === 'waiting' && <CircleDashed size={16} />}
                       </span>
-                      <span className="ai-generator__step-label">{label}</span>
+                      <span key={`${step}-${displayLabel}`} className="ai-generator__step-label">
+                        {displayLabel}
+                      </span>
                       <span className="ai-generator__step-status">
                         {status === 'done' && 'concluído'}
                         {status === 'running' && 'executando'}
