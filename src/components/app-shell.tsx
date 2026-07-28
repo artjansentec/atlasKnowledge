@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Lightbulb,
   LogOut,
+  MessagesSquare,
   Search,
   Sparkles,
   UserCircle,
@@ -15,7 +16,8 @@ import './app-shell.css'
 const navItems = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/projects', label: 'Projetos', icon: FolderKanban },
-  { to: '/ai-generator', label: 'Gerador IA', icon: Sparkles },
+  { to: '/ai-generator', label: 'Gerar com IA', icon: Sparkles },
+  { to: '/ask', label: 'Busca semântica RAG', icon: MessagesSquare },
   { to: '/lessons', label: 'Lições', icon: Lightbulb },
   { to: '/search', label: 'Buscar', icon: Search },
 ] as const

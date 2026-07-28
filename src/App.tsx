@@ -5,6 +5,9 @@ import { AuthProvider, useAuth } from './lib/auth'
 import { ProjectStatusProvider } from './lib/project-status'
 import './index.css'
 import AiGeneratorPage from './pages/ai-generator'
+import AskIndexPage from './pages/ask-index'
+import AskLayoutPage from './pages/ask-layout'
+import AskThreadPage from './pages/ask-thread'
 import DashboardPage from './pages/dashboard'
 import LessonsPage from './pages/lessons'
 import LoginPage from './pages/login'
@@ -49,6 +52,10 @@ function App() {
             <Route path="/projects/:slug" element={<ProjectDetailPage />} />
             <Route path="/ai-generator" element={<AiGeneratorPage />} />
             <Route path="/lessons" element={<LessonsPage />} />
+            <Route path="/ask" element={<AskLayoutPage />}>
+              <Route index element={<AskIndexPage />} />
+              <Route path=":threadId" element={<AskThreadPage />} />
+            </Route>
             <Route path="/search" element={<SearchPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

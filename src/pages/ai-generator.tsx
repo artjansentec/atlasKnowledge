@@ -649,7 +649,7 @@ function AiGeneratorPage() {
               <ChevronRight size={12} aria-hidden="true" />
             </>
           ) : null}
-          <span>Gerador IA</span>
+          <span>Gerar com IA</span>
         </nav>
 
         <header className="ai-generator__header">
