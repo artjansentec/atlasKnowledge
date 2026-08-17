@@ -641,7 +641,7 @@ function AiGeneratorPage() {
     <div className="ai-generator-page">
       <div className="ai-generator">
         <nav className="ai-generator__breadcrumb" aria-label="Breadcrumb">
-          <Link to="/">Dashboard</Link>
+          <Link to="/projects">Projetos</Link>
           <ChevronRight size={12} aria-hidden="true" />
           {lockedToProject && routeSlug ? (
             <>

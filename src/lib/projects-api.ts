@@ -212,11 +212,15 @@ export async function listProjects(filters?: {
   status?: ProjectStatus
   q?: string
   responsible?: string
+  from?: string
+  to?: string
 }) {
   const params = new URLSearchParams()
   if (filters?.status) params.set('status', filters.status)
   if (filters?.q) params.set('q', filters.q)
   if (filters?.responsible) params.set('responsible', filters.responsible)
+  if (filters?.from) params.set('from', filters.from)
+  if (filters?.to) params.set('to', filters.to)
 
   const query = params.toString()
   const projects = await apiRequest<ProjectListItem[]>(query ? `/projects?${query}` : '/projects')

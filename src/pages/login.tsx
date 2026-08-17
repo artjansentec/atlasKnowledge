@@ -19,7 +19,7 @@ function LoginPage() {
     document.title = 'Entrar · Atlas Knowledge'
   }, [])
 
-  if (!loading && user) return <Navigate to="/" replace />
+  if (!loading && user) return <Navigate to="/projects" replace />
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -28,7 +28,7 @@ function LoginPage() {
 
     try {
       await login(email, password)
-      navigate('/')
+      navigate('/projects')
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Não foi possível entrar. Tente novamente.'
       setError(message)

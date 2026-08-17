@@ -1,8 +1,8 @@
 import { type ReactNode, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
+  Activity,
   FolderKanban,
-  LayoutDashboard,
   Lightbulb,
   LogOut,
   MessagesSquare,
@@ -14,24 +14,24 @@ import { useAuth } from '../lib/auth'
 import './app-shell.css'
 
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/projects', label: 'Projetos', icon: FolderKanban },
-  { to: '/ai-generator', label: 'Gerar com IA', icon: Sparkles },
-  { to: '/ask', label: 'Busca semântica RAG', icon: MessagesSquare },
-  { to: '/lessons', label: 'Lições', icon: Lightbulb },
-  { to: '/search', label: 'Buscar', icon: Search },
+  { to: '/projects', label: 'Projetos', icon: FolderKanban, adminOnly: false },
+  { to: '/ai-generator', label: 'Gerar com IA', icon: Sparkles, adminOnly: false },
+  { to: '/ai-monitor', label: 'Monitor de IA', icon: Activity, adminOnly: true },
+  { to: '/ask', label: 'Busca semântica RAG', icon: MessagesSquare, adminOnly: false },
+  { to: '/lessons', label: 'Lições', icon: Lightbulb, adminOnly: false },
+  { to: '/search', label: 'Buscar', icon: Search, adminOnly: false },
 ] as const
 
 function isNavActive(pathname: string, to: string) {
-  if (to === '/') return pathname === '/'
-  return pathname.startsWith(to)
+  return pathname === to || pathname.startsWith(`${to}/`)
 }
 
 export function AppShell({ children }: { children?: ReactNode }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const { user, logout, isCurrentUserAdmin } = useAuth()
   const [q, setQ] = useState('')
+  const visibleNavItems = navItems.filter((item) => !item.adminOnly || isCurrentUserAdmin())
 
   const currentUserInitials = (user?.name ?? '')
     .split(' ')
@@ -55,7 +55,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
   return (
     <div className="app-shell">
       <aside className="app-shell__sidebar">
-        <Link to="/" className="app-shell__brand" aria-label="Ir para o dashboard">
+        <Link to="/projects" className="app-shell__brand" aria-label="Ir para projetos">
           <div className="app-shell__brand-icon bg-gradient-primary">
             <Sparkles size={16} strokeWidth={2.5} aria-hidden="true" />
           </div>
@@ -68,7 +68,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
         <nav className="app-shell__sidebar-nav app-shell__nav" aria-label="Navegação principal">
           <div className="app-shell__nav-label">Navegação</div>
           <ul className="app-shell__nav-list">
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const active = isNavActive(pathname, item.to)
               const Icon = item.icon
 

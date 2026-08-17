@@ -12,6 +12,7 @@ dayjs.locale('pt-br')
 type DashboardPeriodPickerProps = {
   value: DashboardPeriod
   onChange: (period: DashboardPeriod) => void
+  'aria-label'?: string
 }
 
 function toISO(value: Dayjs | null) {
@@ -61,7 +62,11 @@ function buildSlotProps(label: string) {
   }
 }
 
-export function DashboardPeriodPicker({ value, onChange }: DashboardPeriodPickerProps) {
+export function DashboardPeriodPicker({
+  value,
+  onChange,
+  'aria-label': ariaLabel = 'Filtrar por período',
+}: DashboardPeriodPickerProps) {
   const fromValue = dayjs(value.from)
   const toValue = dayjs(value.to)
 
@@ -79,7 +84,7 @@ export function DashboardPeriodPicker({ value, onChange }: DashboardPeriodPicker
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="pt-br">
-      <div className="dashboard-period" aria-label="Filtrar dashboard por período">
+      <div className="dashboard-period" aria-label={ariaLabel}>
         <span className="dashboard-period__icon" aria-hidden="true">
           <CalendarRange size={15} />
         </span>

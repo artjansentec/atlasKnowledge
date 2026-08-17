@@ -10,13 +10,14 @@ import {
   Search,
   UserRound,
 } from 'lucide-react'
+import { DashboardPeriodPicker } from '../components/dashboard-period-picker'
 import { StatusBadge } from '../components/status-badge'
 import { useAuth } from '../lib/auth'
-import { formatDateBR } from '../lib/date'
+import { currentMonthRange, formatDateBR, isWithinPeriod } from '../lib/date'
 import {
   getDashboardSummary,
-  listProjectUpdates,
   listProjects,
+  type DashboardPeriod,
   type DashboardSummary,
   type ProjectListItem,
   type ProjectUpdate,
@@ -36,6 +37,7 @@ function ProjectsPage() {
   )
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
+  const [period, setPeriod] = useState<DashboardPeriod>(() => currentMonthRange())
   const [createdProject, setCreatedProject] = useState('')
   const [projects, setProjects] = useState<ProjectListItem[]>([])
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
@@ -54,20 +56,28 @@ function ProjectsPage() {
 
   useEffect(() => {
     let cancelled = false
+    const requestPeriod = { from: period.from, to: period.to }
 
     async function load() {
       setLoading(true)
       try {
         const status = filter === 'all' ? undefined : filter
-        const [projectList, summaryData, updateList] = await Promise.all([
-          listProjects({ status, q: query.trim() || undefined }),
-          getDashboardSummary(),
-          listProjectUpdates(),
+        const [projectList, summaryData] = await Promise.all([
+          listProjects({
+            status,
+            q: query.trim() || undefined,
+            from: requestPeriod.from,
+            to: requestPeriod.to,
+          }),
+          getDashboardSummary(requestPeriod),
         ])
         if (cancelled) return
-        setProjects(projectList)
+        const filteredProjects = projectList.filter((project) =>
+          isWithinPeriod(project.createdAt, requestPeriod),
+        )
+        setProjects(filteredProjects)
         setSummary(summaryData)
-        setUpdates(updateList.slice(0, 5))
+        setUpdates((summaryData.recentUpdates ?? []).slice(0, 5))
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -78,7 +88,7 @@ function ProjectsPage() {
       cancelled = true
       window.clearTimeout(timeout)
     }
-  }, [filter, query])
+  }, [filter, query, period.from, period.to])
 
   const activeCount = useMemo(
     () => projects.filter((project) => project.status === 'active').length,
@@ -101,11 +111,19 @@ function ProjectsPage() {
           </p>
         </div>
 
-        {canCreateProjects && (
-          <Link to="/projects/new" className="projects-hero__action">
-            Novo projeto <ArrowUpRight size={16} aria-hidden="true" />
-          </Link>
-        )}
+        <div className="projects-hero__aside">
+          <DashboardPeriodPicker
+            value={period}
+            onChange={setPeriod}
+            aria-label="Filtrar projetos pela data de criação"
+          />
+
+          {canCreateProjects && (
+            <Link to="/projects/new" className="projects-hero__action">
+              Novo projeto <ArrowUpRight size={16} aria-hidden="true" />
+            </Link>
+          )}
+        </div>
       </section>
 
       {createdProject && (
@@ -115,10 +133,20 @@ function ProjectsPage() {
       )}
 
       <section className="projects-overview" aria-label="Resumo dos projetos">
-        <MetricCard icon={FolderKanban} label="Total" value={summary?.projectCount ?? projects.length} hint="projetos na wiki" />
+        <MetricCard
+          icon={FolderKanban}
+          label="Total"
+          value={summary?.projectCount ?? projects.length}
+          hint={`${summary?.activeProjectCount ?? activeCount} ativos no período`}
+        />
         <MetricCard icon={Clock3} label="Ativos" value={activeCount} hint="em acompanhamento" />
         <MetricCard icon={CheckCircle2} label="Concluídos" value={doneCount} hint="com histórico preservado" />
-        <MetricCard icon={Lightbulb} label="Lições" value={summary?.lessonCount ?? 0} hint="aprendizados registrados" />
+        <MetricCard
+          icon={Lightbulb}
+          label="Lições"
+          value={summary?.lessonCount ?? 0}
+          hint="criadas no período"
+        />
       </section>
 
       <section className="projects-layout">
@@ -186,7 +214,7 @@ function ProjectsPage() {
                     </span>
                     <span>
                       <Calendar size={14} aria-hidden="true" />
-                      Atualizado em {formatDateBR(project.updatedAt)}
+                      Criado em {formatDateBR(project.createdAt)}
                     </span>
                   </div>
 
@@ -207,19 +235,23 @@ function ProjectsPage() {
             <h2>Últimas mudanças</h2>
           </div>
 
-          <ul className="projects-timeline">
-            {updates.map((update) => (
-              <li key={update.id}>
-                <Link to={`/projects/${update.projectSlug}`}>
-                  <span>{formatDateBR(update.at)}</span>
-                  <strong>{update.action}</strong>
-                  <small>
-                    {update.projectName} · {update.target}
-                  </small>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          {updates.length === 0 ? (
+            <p className="projects-aside__empty">Nenhuma atualização neste período.</p>
+          ) : (
+            <ul className="projects-timeline">
+              {updates.map((update) => (
+                <li key={update.id}>
+                  <Link to={`/projects/${update.projectSlug}`}>
+                    <span>{formatDateBR(update.at)}</span>
+                    <strong>{update.action}</strong>
+                    <small>
+                      {update.projectName} · {update.target}
+                    </small>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
         </aside>
       </section>
     </div>
