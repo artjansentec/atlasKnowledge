@@ -62,7 +62,7 @@ function App() {
           </Route>
         </Routes>
       </BrowserRouter>
-      <SpeedInsights />
+      {import.meta.env.VITE_VERCEL === '1' ? <SpeedInsights /> : null}
     </AuthProvider>
   )
 }

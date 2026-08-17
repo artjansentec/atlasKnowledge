@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Go workspace (módulo da API irmã, só para o gopls neste repo)
+go.work
+go.work.sum

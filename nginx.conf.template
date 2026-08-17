@@ -1,3 +1,25 @@
+map $status $status_ansi {
+    ~^2     "\033[1;32m";
+    ~^3     "\033[36m";
+    ~^4     "\033[1;33m";
+    ~^5     "\033[1;31m";
+    default "\033[0m";
+}
+
+map $request_method $method_ansi {
+    GET     "\033[34m";
+    POST    "\033[32m";
+    PUT     "\033[33m";
+    PATCH   "\033[33m";
+    DELETE  "\033[31m";
+    OPTIONS "\033[2;35m";
+    HEAD    "\033[2;34m";
+    default "\033[37m";
+}
+
+log_format atlas_color escape=none
+    '\033[2m$time_iso8601\033[0m │ $status_ansi$status\033[0m │ \033[2m$request_time s\033[0m │ $method_ansi$request_method\033[0m \033[37m$request_uri\033[0m';
+
 server {
     listen ${PORT};
     server_name _;
@@ -5,14 +27,38 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    error_log /dev/stderr warn;
+    access_log /dev/stdout atlas_color;
+
     gzip on;
     gzip_types text/plain text/css application/json application/javascript text/xml application/xml;
+
+    client_max_body_size 110m;
+
+    location /_vercel/ {
+        access_log off;
+        return 204;
+    }
+
+    location /api/ {
+        proxy_pass ${API_UPSTREAM}/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Cookie $http_cookie;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_connect_timeout 10s;
+    }
 
     location / {
         try_files $uri $uri/ /index.html;
     }
 
     location ~* \.(?:css|js|mjs|map|ico|svg|png|jpg|jpeg|gif|webp|woff2?)$ {
+        access_log off;
         expires 1y;
         add_header Cache-Control "public, immutable";
     }

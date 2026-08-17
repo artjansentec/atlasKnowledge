@@ -8,8 +8,15 @@ function normalizeApiBase(raw?: string): string {
   return `${value}${API_VERSION_SUFFIX}`
 }
 
+function resolveApiOrigin(base: string): string {
+  if (base.startsWith('/')) {
+    return typeof window !== 'undefined' ? window.location.origin : ''
+  }
+  return new URL(base).origin
+}
+
 const API_BASE = normalizeApiBase(import.meta.env.VITE_API_URL)
-const API_ORIGIN = new URL(API_BASE).origin
+const API_ORIGIN = resolveApiOrigin(API_BASE)
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
