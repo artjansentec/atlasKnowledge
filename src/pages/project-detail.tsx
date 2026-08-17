@@ -41,7 +41,7 @@ import {
 import { confirmDanger, showToast } from '../components/app-alerts'
 import { DevResponsibleSelect } from '../components/dev-responsible-select'
 import { DocumentReaderDock } from '../components/document-reader-dock'
-import { MarkdownView, type MarkdownSectionRef } from '../components/markdown-view'
+import { MarkdownView } from '../components/markdown-view'
 import { StatusBadge } from '../components/status-badge'
 import { useProjectStatuses } from '../lib/project-status'
 import { ApiError, fetchAuthenticatedBlob } from '../lib/api'
@@ -320,16 +320,6 @@ function ProjectDetailPage() {
   const canManageDev = displayedProject ? canManageDevProject(displayedProject) : false
   const canManage = isDev ? canManageDev : canManageDoc
   const tab = requestedTab
-  // Secoes da documentacao do projeto disponiveis para citacao dentro da aba Desenvolvimento.
-  const projectSectionRefs: MarkdownSectionRef[] = flattenSections(sections).map(({ section }) => ({
-    id: section.id,
-    title: section.title,
-  }))
-  const projectSectionOptions: SectionOption[] = flattenSections(sections).map(({ section, depth }) => ({
-    id: section.id,
-    title: section.title,
-    depth,
-  }))
   const previewCitationLocations = previewAttachment
     ? getAttachmentCitationLocations(previewAttachment, flatSections, currentSavedDrafts)
     : []
@@ -778,15 +768,6 @@ function ProjectDetailPage() {
     setTabAnimationStep((current) => current + 1)
   }
 
-  function openProjectSection(sectionId: string) {
-    const nextSearchParams = new URLSearchParams(searchParams)
-    nextSearchParams.delete('view')
-    nextSearchParams.delete('tab')
-    nextSearchParams.set('section', sectionId)
-    setSearchParams(nextSearchParams, { replace: true })
-    setTabAnimationStep((current) => current + 1)
-  }
-
   function openFullscreen() {
     if (fullscreenCloseTimeoutRef.current) window.clearTimeout(fullscreenCloseTimeoutRef.current)
     setFullscreenClosing(false)
@@ -828,9 +809,6 @@ function ProjectDetailPage() {
       sectionCreationMode={sectionCreationMode}
       sectionOptions={sectionOptions}
       sectionTitleDraft={sectionTitleDraft}
-      citableSections={isDev ? projectSectionOptions : undefined}
-      sectionRefs={isDev ? projectSectionRefs : undefined}
-      onOpenSectionRef={isDev ? openProjectSection : undefined}
       onAddSection={addSection}
       onCancel={cancelEditing}
       onCancelSectionCreation={cancelSectionCreation}
@@ -1048,9 +1026,6 @@ function DocView({
   sectionCreationMode,
   sectionOptions,
   sectionTitleDraft,
-  citableSections,
-  sectionRefs,
-  onOpenSectionRef,
   onAddSection,
   onCancel,
   onCancelSectionCreation,
@@ -1095,9 +1070,6 @@ function DocView({
   sectionCreationMode: SectionCreationMode | null
   sectionOptions: SectionOption[]
   sectionTitleDraft: string
-  citableSections?: SectionOption[]
-  sectionRefs?: MarkdownSectionRef[]
-  onOpenSectionRef?: (sectionId: string) => void
   onAddSection: () => void
   onCancel: () => void
   onCancelSectionCreation: () => void
@@ -1161,8 +1133,10 @@ function DocView({
   }
 
   function insertSectionCitation(section: SectionOption) {
-    insertCitation(`[[secao:${section.title}]]`, 'Citação de seção do projeto inserida')
+    insertCitation(`[[secao:${section.title}]]`, 'Citação de seção inserida')
   }
+
+  const citableSections = sectionOptions.filter((section) => section.id !== activeId)
 
   const emptyMessage = isDev
     ? 'Nenhum requisito de desenvolvimento cadastrado ainda.'
@@ -1267,8 +1241,8 @@ function DocView({
                 attachments={attachments}
                 content={activeContent}
                 onOpenAttachment={onOpenAttachment}
-                sections={sectionRefs}
-                onOpenSection={onOpenSectionRef}
+                sections={sectionOptions}
+                onOpenSection={onSelect}
               />
               <SectionPager
                 activeIndex={activeIndex}
@@ -1418,9 +1392,9 @@ function DocView({
                   </div>
                 </div>
               )}
-              {isDev && citableSections && citableSections.length > 0 && (
+              {citableSections.length > 0 && (
                 <div className="project-editor__attachments project-editor__citations">
-                  <div className="project-editor__label">Citar seções do projeto</div>
+                  <div className="project-editor__label">Citar seções</div>
                   <div>
                     {citableSections.map((section) => (
                       <button
@@ -1454,8 +1428,8 @@ function DocView({
                   attachments={attachments}
                   content={draft}
                   onOpenAttachment={onOpenAttachment}
-                  sections={sectionRefs}
-                  onOpenSection={onOpenSectionRef}
+                  sections={sectionOptions}
+                  onOpenSection={onSelect}
                 />
               </div>
             </div>
@@ -1472,8 +1446,8 @@ function DocView({
                     attachments={attachments}
                     content={activeContent}
                     onOpenAttachment={onOpenAttachment}
-                    sections={sectionRefs}
-                    onOpenSection={onOpenSectionRef}
+                    sections={sectionOptions}
+                    onOpenSection={onSelect}
                   />
                   <SectionPager
                     activeIndex={activeIndex}

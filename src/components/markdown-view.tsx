@@ -207,7 +207,7 @@ function renderSegments(
             key={`section-${section.id}-${key}`}
             type="button"
             className="markdown-section-reference"
-            title={`Ir para a seção do projeto: ${section.title}`}
+            title={`Ir para a seção: ${section.title}`}
             onClick={() => onOpenSection?.(section.id)}
           >
             <span className="markdown-section-reference__name">{section.title}</span>

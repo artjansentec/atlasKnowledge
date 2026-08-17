@@ -142,6 +142,12 @@ const MNEMOS_STEPS = [
   'READING_CHUNKS',
   'BUILDING_PROMPT',
   'GENERATING',
+  'ANALYZING_SPECIALISTS',
+  'COVERAGE',
+  'SYNTHESIS',
+  'ENRICHING',
+  'POLISHING',
+  'FINAL_VALIDATION',
   'VALIDATING_RESPONSE',
 ] as const
 
@@ -157,6 +163,12 @@ const MNEMOS_STEP_LABELS: Record<MnemosStep, string> = {
   READING_CHUNKS: 'Lendo em chunks',
   BUILDING_PROMPT: 'Montando prompt',
   GENERATING: 'Gerando documentação',
+  ANALYZING_SPECIALISTS: 'Analisando especialistas',
+  COVERAGE: 'Validando cobertura',
+  SYNTHESIS: 'Sintetizando documentação',
+  ENRICHING: 'Enriquecendo',
+  POLISHING: 'Polindo',
+  FINAL_VALIDATION: 'Validação final',
   VALIDATING_RESPONSE: 'Validando resposta',
 }
 
@@ -309,7 +321,7 @@ function AiGeneratorPage() {
   const [settingsError, setSettingsError] = useState<string | null>(null)
   const [settingsForm, setSettingsForm] = useState<AiSettings>({
     provider: 'openai',
-    model: 'gpt-4o-mini',
+    model: getProviderMeta('openai').models[0],
     apiKey: '',
     baseUrl: '',
   })
@@ -1329,8 +1341,8 @@ function AiGeneratorPage() {
                       onChange={(event) => setSettingsForm((prev) => ({ ...prev, model: event.target.value }))}
                       placeholder={
                         settingsForm.provider === 'azure'
-                          ? 'Ex.: gpt-4o-mini (nome do deployment)'
-                          : 'Ex.: gpt-4o-mini'
+                          ? 'Ex.: gpt-5.6-luna (nome do deployment)'
+                          : 'Ex.: gpt-5.6-luna'
                       }
                       autoComplete="off"
                       required

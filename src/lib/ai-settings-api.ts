@@ -32,7 +32,7 @@ export const AI_PROVIDER_META: Record<AiProvider, AiProviderMeta> = {
   openai: {
     value: 'openai',
     label: 'OpenAI (ou API compatível)',
-    models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'],
+    models: ['gpt-5.6-luna', 'gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'],
     baseUrlPlaceholder: 'https://api.openai.com/v1 (opcional)',
     apiKeyRequired: true,
     baseUrlRequired: false,
@@ -65,7 +65,7 @@ export const AI_PROVIDER_META: Record<AiProvider, AiProviderMeta> = {
   azure: {
     value: 'azure',
     label: 'Azure OpenAI',
-    models: ['gpt-4o-mini', 'gpt-4o'],
+    models: ['gpt-5.6-luna', 'gpt-4o-mini', 'gpt-4o'],
     baseUrlPlaceholder: 'https://SEU_RESOURCE.openai.azure.com',
     apiKeyRequired: true,
     baseUrlRequired: true,
