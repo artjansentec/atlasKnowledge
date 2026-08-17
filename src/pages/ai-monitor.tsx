@@ -20,7 +20,10 @@ import {
   ChartSkeleton,
   EmptyState,
   KpiCard,
+  ObsHelpDialog,
   Panel,
+  PercentileHelpContent,
+  StageLatencyHelpContent,
   StatusPill,
   TermHint,
   fmtMs,
@@ -97,6 +100,10 @@ function ChartGradients({ id }: { id: string }) {
 function PerformanceTab() {
   const { executions, loading, preset, range } = useObservability()
   const chartId = useId().replace(/:/g, '')
+  const [percentileHelpOpen, setPercentileHelpOpen] = useState(false)
+  const [stageLatencyHelpOpen, setStageLatencyHelpOpen] = useState(false)
+  const openPercentileHelp = () => setPercentileHelpOpen(true)
+  const openStageLatencyHelp = () => setStageLatencyHelpOpen(true)
   const k = kpis(executions)
   const p99 = percentile(
     executions.map((e) => e.duration_ms),
@@ -110,33 +117,50 @@ function PerformanceTab() {
     <div className="obs-tab-panel">
       <div className="obs-grid-3">
         <KpiCard
-          label="p50"
-          tip="Percentil 50: metade das execuções foi mais rápida que este valor."
+          label="p50 · caso típico"
+          tip="Clique para entender p50, p95 e p99"
+          caption="Metade das execuções foi mais rápida que isto"
           value={fmtMs(k.p50)}
           loading={loading}
+          onHelp={openPercentileHelp}
         />
         <KpiCard
-          label="p95"
-          tip="Percentil 95: 95% das execuções terminaram em até este tempo. Bom indicador de lentidão recorrente."
+          label="p95 · lentidão recorrente"
+          tip="Clique para entender p50, p95 e p99"
+          caption="95% terminaram em até este tempo"
           value={fmtMs(k.p95)}
           loading={loading}
           tone="warning"
+          onHelp={openPercentileHelp}
         />
         <KpiCard
-          label="p99"
-          tip="Percentil 99: quase todas as execuções (99%) ficaram abaixo deste tempo. Mostra os piores casos."
+          label="p99 · piores extremos"
+          tip="Clique para entender p50, p95 e p99"
+          caption="99% ficaram abaixo; 1% foi pior"
           value={fmtMs(p99)}
           loading={loading}
           tone="negative"
+          onHelp={openPercentileHelp}
         />
       </div>
 
+      <ObsHelpDialog
+        open={percentileHelpOpen}
+        onClose={() => setPercentileHelpOpen(false)}
+        title="Como ler p50, p95 e p99"
+      >
+        <PercentileHelpContent />
+      </ObsHelpDialog>
+
       <Panel
         title="Latência por etapa"
+        onHelp={openStageLatencyHelp}
+        helpLabel="Como interpretar latência por etapa"
         description={
           <>
             Tempo (p50 / p95) em cada estágio do pipeline. O maior p95 costuma ser o{' '}
-            <TermHint term="gargalo" tip="Etapa que mais atrasa o fluxo completo." />.
+            <TermHint term="gargalo" tip="Etapa que mais atrasa o fluxo completo." />. Clique no ? para
+            interpretar.
           </>
         }
       >
@@ -172,6 +196,14 @@ function PerformanceTab() {
         )}
       </Panel>
 
+      <ObsHelpDialog
+        open={stageLatencyHelpOpen}
+        onClose={() => setStageLatencyHelpOpen(false)}
+        title="Como ler latência por etapa"
+      >
+        <StageLatencyHelpContent />
+      </ObsHelpDialog>
+
       <Panel
         title="Volume de execuções"
         description="Quantidade de chamadas ao pipeline ao longo do tempo selecionado."
@@ -205,7 +237,11 @@ function PerformanceTab() {
         items={[
           {
             term: 'p50 / p95 / p99',
-            text: 'Percentis de latência: mediana, casos lentos frequentes e piores extremos.',
+            text: 'Tempos ordenados do mais rápido ao mais lento: caso típico (p50), lentidão recorrente (p95) e piores extremos (p99). Clique no ? dos cards para um exemplo.',
+          },
+          {
+            term: 'Latência por etapa',
+            text: 'Onde o tempo é gasto no pipeline. Ordene pelo maior p95 para achar o gargalo. Clique no ? do painel para interpretar.',
           },
         ]}
       />
@@ -345,11 +381,10 @@ function QualityTab() {
   const grounding = histogram(executions.map((e) => e.grounding_score ?? 0))
   const confidence = histogram(executions.map((e) => e.confidence_score ?? 0))
   const avgRetrieval = avg(executions.map((e) => e.retrieval_score ?? 0))
-  const avgRerank = avg(executions.map((e) => e.rerank_score ?? 0))
 
   return (
     <div className="obs-tab-panel">
-      <div className="obs-grid-4">
+      <div className="obs-grid-2">
         <KpiCard
           label={
             <TermHint
@@ -365,30 +400,10 @@ function QualityTab() {
           label={
             <TermHint
               term="Score de retrieval"
-              tip="Qualidade média da busca de trechos relevantes no índice semântico."
+              tip="Qualidade média dos trechos recuperados na busca semântica (0 a 1)."
             />
           }
           value={avgRetrieval.toFixed(3)}
-          loading={loading}
-        />
-        <KpiCard
-          label={
-            <TermHint
-              term="Score de rerank"
-              tip="Após a busca, o rerank reordena trechos para priorizar os mais úteis à pergunta."
-            />
-          }
-          value={avgRerank.toFixed(3)}
-          loading={loading}
-        />
-        <KpiCard
-          label={
-            <TermHint
-              term="Taxa de cache"
-              tip="Percentual de respostas reaproveitadas de cache, economizando tokens e tempo."
-            />
-          }
-          value={fmtPct(k.cacheHitRate)}
           loading={loading}
         />
       </div>
@@ -438,8 +453,8 @@ function QualityTab() {
             text: 'Verifica se a resposta se apoia nos documentos recuperados, em vez de “inventar”.',
           },
           {
-            term: 'Retrieval / Rerank',
-            text: 'Busca trechos relevantes e depois reordena os melhores para o prompt.',
+            term: 'Retrieval',
+            text: 'Score médio da busca de trechos relevantes no índice semântico (0 a 1). Quanto maior, mais alinhados os trechos recuperados à pergunta.',
           },
         ]}
       />

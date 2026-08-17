@@ -33,7 +33,6 @@ export function kpis(executions: Execution[]) {
   const success = executions.filter((e) => isSuccessStatus(e.status)).length
   const errors = executions.filter((e) => isErrorStatus(e.status)).length
   const grounded = executions.filter((e) => e.grounded).length
-  const cacheHits = executions.filter((e) => e.cache_hit).length
   const durations = executions.map((e) => e.duration_ms)
 
   return {
@@ -41,7 +40,6 @@ export function kpis(executions: Execution[]) {
     successRate: total ? (success / total) * 100 : 0,
     errorRate: total ? (errors / total) * 100 : 0,
     groundingRate: total ? (grounded / total) * 100 : 0,
-    cacheHitRate: total ? (cacheHits / total) * 100 : 0,
     p50: percentile(durations, 50),
     p95: percentile(durations, 95),
   }

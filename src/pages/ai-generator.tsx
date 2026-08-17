@@ -15,11 +15,22 @@ import {
   Loader2,
   RefreshCw,
   RotateCcw,
+  Settings,
   Sparkles,
   UploadCloud,
   X,
 } from 'lucide-react'
 import { ApiError } from '../lib/api'
+import {
+  AI_PROVIDER_OPTIONS,
+  CUSTOM_MODEL_VALUE,
+  getAiSettings,
+  getProviderMeta,
+  isCustomModelSelected,
+  resolveModelSelectValue,
+  updateAiSettings,
+  type AiSettings,
+} from '../lib/ai-settings-api'
 import { useAuth } from '../lib/auth'
 import {
   cancelDocumentationJob,
@@ -292,6 +303,16 @@ function AiGeneratorPage() {
   const [jobsRefreshing, setJobsRefreshing] = useState(false)
   const [jobsError, setJobsError] = useState<string | null>(null)
   const [cancellingJobId, setCancellingJobId] = useState<string | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsLoading, setSettingsLoading] = useState(false)
+  const [settingsSaving, setSettingsSaving] = useState(false)
+  const [settingsError, setSettingsError] = useState<string | null>(null)
+  const [settingsForm, setSettingsForm] = useState<AiSettings>({
+    provider: 'openai',
+    model: 'gpt-4o-mini',
+    apiKey: '',
+    baseUrl: '',
+  })
   const inputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const jobsRefreshCooldownRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -429,6 +450,92 @@ function AiGeneratorPage() {
       showToast(err instanceof ApiError ? err.message : 'Não foi possível cancelar o job.', 'error')
     } finally {
       setCancellingJobId(null)
+    }
+  }
+
+  async function openAiSettings() {
+    setSettingsOpen(true)
+    setSettingsError(null)
+    setSettingsLoading(true)
+    try {
+      const current = await getAiSettings()
+      setSettingsForm(current)
+    } catch (err) {
+      // Mantém defaults se ainda não houver configuração no Atlas.
+      if (!(err instanceof ApiError && err.status === 404)) {
+        setSettingsError(err instanceof ApiError ? err.message : 'Não foi possível carregar as configurações.')
+      }
+    } finally {
+      setSettingsLoading(false)
+    }
+  }
+
+  function closeAiSettings() {
+    if (settingsSaving) return
+    setSettingsOpen(false)
+    setSettingsError(null)
+  }
+
+  function changeSettingsProvider(provider: string) {
+    const meta = getProviderMeta(provider)
+    setSettingsForm((prev) => ({
+      ...prev,
+      provider,
+      model: meta.models[0] ?? '',
+      baseUrl: provider === 'ollama' && !prev.baseUrl ? 'http://localhost:11434' : prev.baseUrl,
+    }))
+  }
+
+  function changeSettingsModelSelect(value: string) {
+    if (value === CUSTOM_MODEL_VALUE) {
+      setSettingsForm((prev) => {
+        const presets = getProviderMeta(prev.provider).models
+        return {
+          ...prev,
+          model: presets.includes(prev.model) ? '' : prev.model,
+        }
+      })
+      return
+    }
+    setSettingsForm((prev) => ({ ...prev, model: value }))
+  }
+
+  async function saveAiSettings(event: FormEvent) {
+    event.preventDefault()
+    const meta = getProviderMeta(settingsForm.provider)
+    const model = settingsForm.model.trim()
+    const apiKey = settingsForm.apiKey.trim()
+    const baseUrl = settingsForm.baseUrl.trim()
+
+    if (!model) {
+      setSettingsError('Informe o model.')
+      return
+    }
+    if (meta.apiKeyRequired && !apiKey) {
+      setSettingsError('Informe a API key para este provider.')
+      return
+    }
+    if (meta.baseUrlRequired && !baseUrl) {
+      setSettingsError('Informe a base URL do resource Azure.')
+      return
+    }
+
+    setSettingsSaving(true)
+    setSettingsError(null)
+    try {
+      const saved = await updateAiSettings({
+        provider: settingsForm.provider,
+        model,
+        apiKey,
+        baseUrl,
+      })
+      setSettingsForm(saved)
+      setSettingsOpen(false)
+      showToast('Configurações de IA salvas', 'success')
+    } catch (err) {
+      setSettingsError(err instanceof ApiError ? err.message : 'Não foi possível salvar as configurações.')
+    } finally {
+      setSettingsSaving(false)
     }
   }
 
@@ -653,9 +760,22 @@ function AiGeneratorPage() {
         </nav>
 
         <header className="ai-generator__header">
-          <div className="ai-generator__badge">
-            <Sparkles size={12} aria-hidden="true" />
-            IA · beta
+          <div className="ai-generator__header-top">
+            <div className="ai-generator__badge">
+              <Sparkles size={12} aria-hidden="true" />
+              IA · beta
+            </div>
+            {canCreateProjects ? (
+              <button
+                type="button"
+                className="ai-generator__icon-btn"
+                onClick={() => void openAiSettings()}
+                aria-label="Configurações de IA"
+                title="Configurações de IA"
+              >
+                <Settings size={18} aria-hidden="true" />
+              </button>
+            ) : null}
           </div>
           <h1>Gerador de Documentação com IA</h1>
           <p>
@@ -1114,7 +1234,7 @@ function AiGeneratorPage() {
         <div className="ai-generator-modal" onClick={() => setConfirmRemove(null)}>
           <div className="ai-generator-modal__dialog" onClick={(event) => event.stopPropagation()}>
             <h3>Remover arquivo?</h3>
-            <p>{confirmRemove.file.name}</p>
+            <p className="ai-generator-modal__file-name">{confirmRemove.file.name}</p>
             <div className="ai-generator-modal__actions">
               <button type="button" className="ai-generator__secondary-btn" onClick={() => setConfirmRemove(null)}>
                 Cancelar
@@ -1130,6 +1250,158 @@ function AiGeneratorPage() {
           </div>
         </div>
       )}
+
+      {settingsOpen ? (
+        <div className="ai-generator-modal" onClick={closeAiSettings}>
+          <div
+            className="ai-generator-modal__dialog ai-generator-modal__dialog--settings"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ai-settings-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="ai-generator-modal__header">
+              <div>
+                <h3 id="ai-settings-title">Configurações de IA</h3>
+                <p className="ai-generator-modal__subtitle">
+                  Define provider, model e credenciais usados pelo Mnemos via Atlas.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="ai-generator__icon-btn"
+                onClick={closeAiSettings}
+                aria-label="Fechar configurações"
+                disabled={settingsSaving}
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            </div>
+
+            {settingsLoading ? (
+              <p className="ai-generator__loading">Carregando configurações...</p>
+            ) : (
+              <form className="ai-generator-settings" onSubmit={(event) => void saveAiSettings(event)}>
+                {settingsError ? (
+                  <div className="ai-generator__error" role="alert">
+                    <AlertCircle size={16} aria-hidden="true" />
+                    <span>{settingsError}</span>
+                  </div>
+                ) : null}
+
+                <label className="ai-generator-field">
+                  <span>
+                    Provider <span className="ai-generator-field__required">*</span>
+                  </span>
+                  <AtlasSelect
+                    value={settingsForm.provider}
+                    onChange={changeSettingsProvider}
+                    options={AI_PROVIDER_OPTIONS}
+                  />
+                </label>
+
+                <label className="ai-generator-field">
+                  <span>
+                    Model <span className="ai-generator-field__required">*</span>
+                  </span>
+                  <AtlasSelect
+                    value={resolveModelSelectValue(settingsForm.provider, settingsForm.model)}
+                    onChange={changeSettingsModelSelect}
+                    options={[
+                      ...getProviderMeta(settingsForm.provider).models.map((model) => ({
+                        value: model,
+                        label: model,
+                      })),
+                      { value: CUSTOM_MODEL_VALUE, label: 'Personalizado…' },
+                    ]}
+                  />
+                </label>
+
+                {isCustomModelSelected(settingsForm.provider, settingsForm.model) ||
+                settingsForm.provider === 'azure' ? (
+                  <label className="ai-generator-field">
+                    <span>
+                      {settingsForm.provider === 'azure' ? 'Nome do deployment' : 'Model personalizado'}
+                      <span className="ai-generator-field__required"> *</span>
+                    </span>
+                    <input
+                      value={settingsForm.model}
+                      onChange={(event) => setSettingsForm((prev) => ({ ...prev, model: event.target.value }))}
+                      placeholder={
+                        settingsForm.provider === 'azure'
+                          ? 'Ex.: gpt-4o-mini (nome do deployment)'
+                          : 'Ex.: gpt-4o-mini'
+                      }
+                      autoComplete="off"
+                      required
+                    />
+                  </label>
+                ) : null}
+
+                <label className="ai-generator-field">
+                  <span>
+                    API key
+                    {getProviderMeta(settingsForm.provider).apiKeyRequired ? (
+                      <span className="ai-generator-field__required"> *</span>
+                    ) : (
+                      ' (opcional)'
+                    )}
+                  </span>
+                  <input
+                    type="password"
+                    value={settingsForm.apiKey}
+                    onChange={(event) => setSettingsForm((prev) => ({ ...prev, apiKey: event.target.value }))}
+                    placeholder={settingsForm.provider === 'ollama' ? 'Pode ficar vazio' : 'sk-...'}
+                    autoComplete="off"
+                  />
+                </label>
+
+                <label className="ai-generator-field">
+                  <span>
+                    Base URL
+                    {getProviderMeta(settingsForm.provider).baseUrlRequired ? (
+                      <span className="ai-generator-field__required"> *</span>
+                    ) : (
+                      ' (opcional)'
+                    )}
+                  </span>
+                  <input
+                    value={settingsForm.baseUrl}
+                    onChange={(event) => setSettingsForm((prev) => ({ ...prev, baseUrl: event.target.value }))}
+                    placeholder={getProviderMeta(settingsForm.provider).baseUrlPlaceholder}
+                    autoComplete="off"
+                  />
+                </label>
+
+                {getProviderMeta(settingsForm.provider).hint ? (
+                  <p className="ai-generator-settings__hint">{getProviderMeta(settingsForm.provider).hint}</p>
+                ) : null}
+
+                <div className="ai-generator-modal__actions">
+                  <button
+                    type="button"
+                    className="ai-generator__secondary-btn"
+                    onClick={closeAiSettings}
+                    disabled={settingsSaving}
+                  >
+                    Cancelar
+                  </button>
+                  <button type="submit" className="ai-generator__primary-btn" disabled={settingsSaving}>
+                    {settingsSaving ? (
+                      <>
+                        <Loader2 size={14} className="ai-generator__spin" aria-hidden="true" />
+                        Salvando...
+                      </>
+                    ) : (
+                      'Salvar'
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

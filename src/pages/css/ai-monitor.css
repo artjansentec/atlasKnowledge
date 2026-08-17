@@ -172,6 +172,28 @@
   cursor: help;
   text-transform: none;
   letter-spacing: 0;
+  padding: 0;
+  font-family: inherit;
+}
+
+button.obs-kpi__tip {
+  cursor: pointer;
+}
+
+button.obs-kpi__tip:hover,
+button.obs-kpi__tip:focus-visible {
+  border-color: color-mix(in oklab, var(--primary) 45%, var(--border));
+  background: color-mix(in oklab, var(--primary) 12%, transparent);
+  color: var(--primary);
+  outline: none;
+}
+
+.obs-kpi__caption {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted-foreground);
+  max-width: 18rem;
 }
 
 .obs-term {
@@ -310,6 +332,12 @@
 
 .obs-panel__header {
   padding: 16px 18px 0;
+}
+
+.obs-panel__title-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .obs-panel__header h3 {
@@ -687,4 +715,121 @@
     grid-template-columns: 1fr;
     gap: 4px;
   }
+}
+
+.obs-help-dialog .MuiDialog-paper {
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  background: var(--card);
+  overflow: hidden;
+}
+
+.obs-help-dialog__content {
+  padding: 0 !important;
+}
+
+.obs-help-dialog__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid color-mix(in oklab, var(--border) 80%, transparent);
+}
+
+.obs-help-dialog__header h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--text-h);
+}
+
+.obs-help-dialog__close {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.obs-help-dialog__close:hover,
+.obs-help-dialog__close:focus-visible {
+  background: var(--muted);
+  color: var(--text);
+  outline: none;
+}
+
+.obs-help-dialog__body {
+  padding: 16px 20px 22px;
+}
+
+.obs-help {
+  display: grid;
+  gap: 14px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.obs-help p {
+  margin: 0;
+}
+
+.obs-help__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.obs-help__list li {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in oklab, var(--border) 85%, transparent);
+  background: color-mix(in oklab, var(--muted) 40%, var(--card));
+}
+
+.obs-help__list strong {
+  font-size: 13px;
+  color: var(--text-h);
+}
+
+.obs-help__list span {
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+.obs-help__example {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--primary) 8%, transparent);
+  border: 1px solid color-mix(in oklab, var(--primary) 18%, transparent);
+}
+
+.obs-help__example-title {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.obs-help__tip {
+  font-size: 13px;
+  color: var(--muted-foreground);
 }
