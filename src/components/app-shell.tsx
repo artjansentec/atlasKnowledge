@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useCallback, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Activity,
@@ -9,7 +9,9 @@ import {
   Search,
   Sparkles,
   UserCircle,
+  UserPlus,
 } from 'lucide-react'
+import { ChangePasswordModal } from './change-password-modal'
 import { useAuth } from '../lib/auth'
 import './app-shell.css'
 
@@ -17,6 +19,7 @@ const navItems = [
   { to: '/projects', label: 'Projetos', icon: FolderKanban, adminOnly: false },
   { to: '/ai-generator', label: 'Gerar com IA', icon: Sparkles, adminOnly: false },
   { to: '/ai-monitor', label: 'Monitor de IA', icon: Activity, adminOnly: true },
+  { to: '/users', label: 'Usuários', icon: UserPlus, adminOnly: true },
   { to: '/ask', label: 'Busca semântica RAG', icon: MessagesSquare, adminOnly: false },
   { to: '/lessons', label: 'Lições', icon: Lightbulb, adminOnly: false },
   { to: '/search', label: 'Buscar', icon: Search, adminOnly: false },
@@ -31,6 +34,8 @@ export function AppShell({ children }: { children?: ReactNode }) {
   const navigate = useNavigate()
   const { user, logout, isCurrentUserAdmin } = useAuth()
   const [q, setQ] = useState('')
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false)
+  const closePasswordModal = useCallback(() => setPasswordModalOpen(false), [])
   const visibleNavItems = navItems.filter((item) => !item.adminOnly || isCurrentUserAdmin())
 
   const currentUserInitials = (user?.name ?? '')
@@ -90,7 +95,12 @@ export function AppShell({ children }: { children?: ReactNode }) {
         </nav>
 
         <div className="app-shell__sidebar-footer">
-          <div className="app-shell__profile-card">
+          <button
+            type="button"
+            className="app-shell__profile-card"
+            onClick={() => setPasswordModalOpen(true)}
+            aria-label="Alterar senha"
+          >
             <div className="app-shell__profile-avatar bg-gradient-primary" aria-hidden="true">
               {currentUserInitials}
             </div>
@@ -101,7 +111,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
                 {currentUserRoleLabel}
               </span>
             </div>
-          </div>
+          </button>
 
           <button type="button" className="app-shell__logout-button" onClick={() => void handleLogout()}>
             <LogOut size={16} aria-hidden="true" />
@@ -150,6 +160,8 @@ export function AppShell({ children }: { children?: ReactNode }) {
           </div>
         </main>
       </div>
+
+      {passwordModalOpen ? <ChangePasswordModal onClose={closePasswordModal} /> : null}
     </div>
   )
 }

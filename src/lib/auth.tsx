@@ -35,6 +35,7 @@ type AuthContextValue = {
   loading: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  applyCurrentUser: (next: AuthUser) => void
   isCurrentUserAdmin: () => boolean
   isDeveloper: () => boolean
   canViewDev: () => boolean
@@ -95,6 +96,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [clearSession])
 
+  const applyCurrentUser = useCallback((next: AuthUser) => {
+    setUser(normalizeUser(next))
+  }, [])
+
   const isCurrentUserAdmin = useCallback(() => user?.role === 'admin', [user])
 
   const isDeveloper = useCallback(() => user?.role === 'desenvolvedor', [user])
@@ -123,6 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       login,
       logout,
+      applyCurrentUser,
       isCurrentUserAdmin,
       isDeveloper,
       canViewDev,
@@ -134,6 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       login,
       logout,
+      applyCurrentUser,
       isCurrentUserAdmin,
       isDeveloper,
       canViewDev,

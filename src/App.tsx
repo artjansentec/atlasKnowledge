@@ -15,6 +15,7 @@ import ProjectCreatePage from './pages/project-create'
 import ProjectDetailPage from './pages/project-detail'
 import ProjectsPage from './pages/projects'
 import SearchPage from './pages/search'
+import UsersPage from './pages/users'
 
 function ProtectedLayout() {
   const { user, loading } = useAuth()
@@ -52,6 +53,7 @@ function App() {
             <Route path="/projects/:slug" element={<ProjectDetailPage />} />
             <Route path="/ai-generator" element={<AiGeneratorPage />} />
             <Route path="/ai-monitor" element={<AiMonitorPage />} />
+            <Route path="/users" element={<UsersPage />} />
             <Route path="/lessons" element={<LessonsPage />} />
             <Route path="/ask" element={<AskLayoutPage />}>
               <Route index element={<AskIndexPage />} />
