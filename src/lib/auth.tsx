@@ -10,6 +10,11 @@ import {
 import { apiRequest, setAccessToken, setUnauthorizedHandler } from './api'
 import type { Project } from './projects'
 
+export type ProjectAccessRef = {
+  responsible?: string
+  responsibleUserId?: string
+}
+
 export type UserRole = 'admin' | 'consultor' | 'desenvolvedor'
 
 export type AuthUser = {
@@ -21,8 +26,9 @@ export type AuthUser = {
 
 // Normaliza roles legados (ex.: 'user') para os perfis atuais.
 function normalizeRole(role: string | null | undefined): UserRole {
-  if (role === 'admin') return 'admin'
-  if (role === 'desenvolvedor') return 'desenvolvedor'
+  const value = role?.trim().toLowerCase()
+  if (value === 'admin') return 'admin'
+  if (value === 'desenvolvedor') return 'desenvolvedor'
   return 'consultor'
 }
 
@@ -39,7 +45,7 @@ type AuthContextValue = {
   isCurrentUserAdmin: () => boolean
   isDeveloper: () => boolean
   canViewDev: () => boolean
-  canManageProject: (project: Project) => boolean
+  canManageProject: (project: ProjectAccessRef) => boolean
   canManageDevProject: (project: Project) => boolean
 }
 
@@ -107,7 +113,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const canViewDev = useCallback(() => isCurrentUserAdmin() || isDeveloper(), [isCurrentUserAdmin, isDeveloper])
 
   const canManageProject = useCallback(
-    (project: Project) => isCurrentUserAdmin() || project.responsible === user?.name,
+    (project: ProjectAccessRef) => {
+      if (isCurrentUserAdmin()) return true
+      if (!user) return false
+      if (project.responsibleUserId && project.responsibleUserId === user.id) return true
+      return Boolean(project.responsible) && project.responsible === user.name
+    },
     [isCurrentUserAdmin, user],
   )
 

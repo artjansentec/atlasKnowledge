@@ -2854,24 +2854,29 @@ function HistoryView({ project }: { project: Project }) {
   return (
     <section className="project-history-panel">
       <ul>
-        {project.history.map((history) => (
+        {project.history.map((history) => {
+          const author = history.author || 'Sistema'
+          const initials = author
+            .split(' ')
+            .map((word) => word[0])
+            .slice(0, 2)
+            .join('')
+
+          return (
           <li key={history.id}>
             <span className="project-history-panel__avatar" aria-hidden="true">
-              {history.author
-                .split(' ')
-                .map((word) => word[0])
-                .slice(0, 2)
-                .join('')}
+              {initials}
             </span>
             <div>
               <p>
-                <strong>{history.author}</strong> <span>{history.action.toLowerCase()}</span>{' '}
+                <strong>{author}</strong> <span>{history.action.toLowerCase()}</span>{' '}
                 <em>{history.target}</em>
               </p>
               <time>{formatDateBR(history.at)}</time>
             </div>
           </li>
-        ))}
+          )
+        })}
       </ul>
     </section>
   )

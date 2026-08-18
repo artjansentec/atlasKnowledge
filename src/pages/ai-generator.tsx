@@ -286,8 +286,9 @@ function iconForFile(name: string) {
 function AiGeneratorPage() {
   const navigate = useNavigate()
   const { slug: routeSlug } = useParams()
-  const { user, isCurrentUserAdmin } = useAuth()
+  const { user, isCurrentUserAdmin, canManageProject } = useAuth()
   const lockedToProject = Boolean(routeSlug)
+  const canCreateProjects = Boolean(user)
 
   const [projectName, setProjectName] = useState('')
   const [description, setDescription] = useState('')
@@ -302,10 +303,7 @@ function AiGeneratorPage() {
   const [error, setError] = useState<string | null>(null)
   const [confirmRemove, setConfirmRemove] = useState<UploadedFile | null>(null)
   const [projects, setProjects] = useState<ProjectListItem[]>([])
-  const canCreateProjects = isCurrentUserAdmin()
-  const [projectMode, setProjectMode] = useState<ProjectMode>(
-    lockedToProject ? 'existing' : canCreateProjects ? 'new' : 'existing',
-  )
+  const [projectMode, setProjectMode] = useState<ProjectMode>(lockedToProject ? 'existing' : 'new')
   const [selectedSlug, setSelectedSlug] = useState(routeSlug ?? '')
   const [resolvedSlug, setResolvedSlug] = useState<string | null>(routeSlug ?? null)
   const [loadingProject, setLoadingProject] = useState(Boolean(routeSlug))
@@ -425,10 +423,22 @@ function AiGeneratorPage() {
     }
   }, [view, routeSlug])
 
-  const selectedProject = useMemo(
-    () => projects.find((project) => project.slug === selectedSlug) ?? null,
-    [projects, selectedSlug],
+  const selectableProjects = useMemo(
+    () => projects.filter((project) => canManageProject(project)),
+    [projects, canManageProject],
   )
+
+  const selectedProject = useMemo(
+    () => selectableProjects.find((project) => project.slug === selectedSlug) ?? null,
+    [selectableProjects, selectedSlug],
+  )
+
+  useEffect(() => {
+    if (lockedToProject || !selectedSlug || projects.length === 0) return
+    if (!selectableProjects.some((project) => project.slug === selectedSlug)) {
+      setSelectedSlug('')
+    }
+  }, [lockedToProject, selectedSlug, projects.length, selectableProjects])
 
   async function refreshJobs() {
     if (jobsRefreshing) return
@@ -606,9 +616,6 @@ function AiGeneratorPage() {
       }
     }
 
-    if (!canCreateProjects) {
-      throw new Error('Apenas administradores podem criar um projeto novo a partir do gerador.')
-    }
     if (!user?.id) throw new Error('Sessão inválida. Faça login novamente.')
     if (!projectName.trim()) throw new Error('Informe o nome do projeto.')
 
@@ -777,7 +784,7 @@ function AiGeneratorPage() {
               <Sparkles size={12} aria-hidden="true" />
               IA · beta
             </div>
-            {canCreateProjects ? (
+            {isCurrentUserAdmin() ? (
               <button
                 type="button"
                 className="ai-generator__icon-btn"
@@ -978,13 +985,13 @@ function AiGeneratorPage() {
                   required
                   onChange={(slug) => {
                     setSelectedSlug(slug)
-                    const project = projects.find((item) => item.slug === slug)
+                    const project = selectableProjects.find((item) => item.slug === slug)
                     if (project) {
                       setProjectName(project.name)
                       setDescription(project.description ?? '')
                     }
                   }}
-                  options={projects.map((project) => ({
+                  options={selectableProjects.map((project) => ({
                     value: project.slug,
                     label: project.name,
                   }))}

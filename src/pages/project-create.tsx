@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowRight,
@@ -51,27 +51,29 @@ const initialDraft: NewProjectDraft = {
 
 function ProjectCreatePage() {
   const navigate = useNavigate()
-  const { isCurrentUserAdmin } = useAuth()
+  const { user } = useAuth()
   const { statuses, getStatusMeta } = useProjectStatuses()
   const [draft, setDraft] = useState(initialDraft)
   const [slugTouched, setSlugTouched] = useState(false)
   const [users, setUsers] = useState<UserListItem[]>([])
   const [devResponsibleUserIds, setDevResponsibleUserIds] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
-  const canCreateProjects = isCurrentUserAdmin()
 
   useEffect(() => {
     document.title = 'Novo projeto · Atlas Knowledge'
     void listUsers().then(setUsers).catch(() => setUsers([]))
   }, [])
 
+  useEffect(() => {
+    if (!user?.id) return
+    setDraft((current) => (current.responsibleUserId ? current : { ...current, responsibleUserId: user.id }))
+  }, [user?.id])
+
   const tags = useMemo(() => splitList(draft.tags), [draft.tags])
   const tech = useMemo(() => splitList(draft.tech), [draft.tech])
   const previewName = draft.name.trim() || 'Novo projeto'
   const previewSlug = draft.slug.trim() || slugify(previewName)
   const responsibleName = users.find((user) => user.id === draft.responsibleUserId)?.name ?? 'Não definido'
-
-  if (!canCreateProjects) return <Navigate to="/projects" replace />
 
   function updateDraft<Key extends keyof NewProjectDraft>(key: Key, value: NewProjectDraft[Key]) {
     setDraft((current) => {
@@ -87,7 +89,6 @@ function ProjectCreatePage() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!canCreateProjects) return
 
     if (!draft.responsibleUserId) {
       showToast('Selecione um responsável', 'warning')

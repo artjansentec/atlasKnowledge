@@ -22,6 +22,7 @@ export type ProjectListItem = {
   description: string
   status: ProjectStatus
   responsible: string
+  responsibleUserId?: string
   readers?: string[]
   client?: string
   createdAt: string

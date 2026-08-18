@@ -55,7 +55,11 @@ function UsersPage() {
     void listManagedUsers()
       .then((next) => {
         if (cancelled) return
-        setUsers(next)
+        setUsers(
+          next.map((user) =>
+            currentUser && user.id === currentUser.id ? { ...user, role: currentUser.role } : user,
+          ),
+        )
         setListError('')
       })
       .catch((err: unknown) => {
@@ -67,7 +71,7 @@ function UsersPage() {
     return () => {
       cancelled = true
     }
-  }, [loading, canManageUsers])
+  }, [loading, canManageUsers, currentUser])
 
   const adminCount = useMemo(() => users.filter((user) => user.role === 'admin').length, [users])
 
@@ -203,7 +207,9 @@ function UsersPage() {
                   {filteredUsers.map((user) => {
                     const initials = userInitials(user.name)
                     const isSelf = user.id === currentUser?.id
-                    const lastAdmin = isLastAdmin(user)
+                    const displayRole =
+                      isSelf && currentUser ? currentUser.role : user.role
+                    const lastAdmin = isLastAdmin({ ...user, role: displayRole })
 
                     return (
                       <tr key={user.id}>
@@ -220,8 +226,8 @@ function UsersPage() {
                         </td>
                         <td className="users-page__email">{user.email}</td>
                         <td>
-                          <span className={`users-page__role users-page__role--${user.role}`}>
-                            {ROLE_LABELS[user.role]}
+                          <span className={`users-page__role users-page__role--${displayRole}`}>
+                            {ROLE_LABELS[displayRole]}
                           </span>
                         </td>
                         <td>
@@ -229,7 +235,15 @@ function UsersPage() {
                             <button
                               type="button"
                               className="users-page__icon-btn"
-                              onClick={() => setEditor({ mode: 'edit', user })}
+                              onClick={() =>
+                                setEditor({
+                                  mode: 'edit',
+                                  user:
+                                    isSelf && currentUser
+                                      ? { ...user, role: currentUser.role }
+                                      : user,
+                                })
+                              }
                               aria-label={`Editar ${user.name}`}
                             >
                               <Pencil size={15} aria-hidden="true" />

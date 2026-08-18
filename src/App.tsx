@@ -17,17 +17,18 @@ import ProjectsPage from './pages/projects'
 import SearchPage from './pages/search'
 import UsersPage from './pages/users'
 
+function LoadingScreen() {
+  return (
+    <div className="app-loading" style={{ padding: '2rem', textAlign: 'center' }}>
+      Carregando...
+    </div>
+  )
+}
+
 function ProtectedLayout() {
   const { user, loading } = useAuth()
 
-  if (loading) {
-    return (
-      <div className="app-loading" style={{ padding: '2rem', textAlign: 'center' }}>
-        Carregando...
-      </div>
-    )
-  }
-
+  if (loading) return <LoadingScreen />
   if (!user) return <Navigate to="/login" replace />
 
   return (
@@ -37,6 +38,15 @@ function ProtectedLayout() {
       </AppShell>
     </ProjectStatusProvider>
   )
+}
+
+function AdminRoute() {
+  const { loading, isCurrentUserAdmin } = useAuth()
+
+  if (loading) return <LoadingScreen />
+  if (!isCurrentUserAdmin()) return <Navigate to="/projects" replace />
+
+  return <Outlet />
 }
 
 function App() {
@@ -52,8 +62,10 @@ function App() {
             <Route path="/projects/:slug/ai-generator" element={<AiGeneratorPage />} />
             <Route path="/projects/:slug" element={<ProjectDetailPage />} />
             <Route path="/ai-generator" element={<AiGeneratorPage />} />
-            <Route path="/ai-monitor" element={<AiMonitorPage />} />
-            <Route path="/users" element={<UsersPage />} />
+            <Route element={<AdminRoute />}>
+              <Route path="/ai-monitor" element={<AiMonitorPage />} />
+              <Route path="/users" element={<UsersPage />} />
+            </Route>
             <Route path="/lessons" element={<LessonsPage />} />
             <Route path="/ask" element={<AskLayoutPage />}>
               <Route index element={<AskIndexPage />} />

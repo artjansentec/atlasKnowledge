@@ -12,7 +12,6 @@ import {
 } from 'lucide-react'
 import { DashboardPeriodPicker } from '../components/dashboard-period-picker'
 import { StatusBadge } from '../components/status-badge'
-import { useAuth } from '../lib/auth'
 import { currentMonthRange, formatDateBR, isWithinPeriod } from '../lib/date'
 import {
   getDashboardSummary,
@@ -29,7 +28,6 @@ import './css/projects.css'
 type Filter = 'all' | ProjectStatus
 
 function ProjectsPage() {
-  const { isCurrentUserAdmin } = useAuth()
   const { statuses } = useProjectStatuses()
   const filterOptions = useMemo<{ value: Filter; label: string }[]>(
     () => [{ value: 'all', label: 'Todos' }, ...statuses.map((status) => ({ value: status.code, label: status.label }))],
@@ -98,7 +96,6 @@ function ProjectsPage() {
     () => projects.filter((project) => project.status === 'done').length,
     [projects],
   )
-  const canCreateProjects = isCurrentUserAdmin()
 
   return (
     <div className="projects-page">
@@ -118,11 +115,9 @@ function ProjectsPage() {
             aria-label="Filtrar projetos pela data de criação"
           />
 
-          {canCreateProjects && (
-            <Link to="/projects/new" className="projects-hero__action">
-              Novo projeto <ArrowUpRight size={16} aria-hidden="true" />
-            </Link>
-          )}
+          <Link to="/projects/new" className="projects-hero__action">
+            Novo projeto <ArrowUpRight size={16} aria-hidden="true" />
+          </Link>
         </div>
       </section>
 
@@ -244,9 +239,7 @@ function ProjectsPage() {
                   <Link to={`/projects/${update.projectSlug}`}>
                     <span>{formatDateBR(update.at)}</span>
                     <strong>{update.action}</strong>
-                    <small>
-                      {update.projectName} · {update.target}
-                    </small>
+                    <small>{timelineMeta(update)}</small>
                   </Link>
                 </li>
               ))}
@@ -256,6 +249,15 @@ function ProjectsPage() {
       </section>
     </div>
   )
+}
+
+function timelineMeta(update: ProjectUpdate) {
+  const parts: string[] = []
+  const author = update.author.trim()
+  if (author && author !== 'Sistema') parts.push(author)
+  if (update.projectName) parts.push(update.projectName)
+  if (update.target) parts.push(update.target)
+  return parts.join(' · ')
 }
 
 function MetricCard({
