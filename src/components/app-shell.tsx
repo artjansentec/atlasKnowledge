@@ -7,10 +7,12 @@ import {
   LogOut,
   MessagesSquare,
   Search,
+  Settings,
   Sparkles,
   UserCircle,
   UserPlus,
 } from 'lucide-react'
+import { AiSettingsModal } from './ai-settings-modal'
 import { ChangePasswordModal } from './change-password-modal'
 import { useAuth } from '../lib/auth'
 import './app-shell.css'
@@ -35,8 +37,12 @@ export function AppShell({ children }: { children?: ReactNode }) {
   const { user, logout, isCurrentUserAdmin } = useAuth()
   const [q, setQ] = useState('')
   const [passwordModalOpen, setPasswordModalOpen] = useState(false)
+  const [aiSettingsOpen, setAiSettingsOpen] = useState(false)
   const closePasswordModal = useCallback(() => setPasswordModalOpen(false), [])
+  const closeAiSettings = useCallback(() => setAiSettingsOpen(false), [])
+  const openAiSettings = useCallback(() => setAiSettingsOpen(true), [])
   const visibleNavItems = navItems.filter((item) => !item.adminOnly || isCurrentUserAdmin())
+  const canOpenAiSettings = isCurrentUserAdmin()
 
   const currentUserInitials = (user?.name ?? '')
     .split(' ')
@@ -91,6 +97,21 @@ export function AppShell({ children }: { children?: ReactNode }) {
                 </li>
               )
             })}
+            {canOpenAiSettings ? (
+              <li>
+                <button
+                  type="button"
+                  className={`app-shell__nav-link${aiSettingsOpen ? ' app-shell__nav-link--active' : ''}`}
+                  onClick={openAiSettings}
+                  aria-haspopup="dialog"
+                  aria-expanded={aiSettingsOpen}
+                >
+                  <Settings size={16} aria-hidden="true" />
+                  Configurações de IA
+                  {aiSettingsOpen ? <span className="app-shell__nav-dot" aria-hidden="true" /> : null}
+                </button>
+              </li>
+            ) : null}
           </ul>
         </nav>
 
@@ -152,6 +173,21 @@ export function AppShell({ children }: { children?: ReactNode }) {
               />
             </div>
           </form>
+
+          {canOpenAiSettings ? (
+            <button
+              type="button"
+              className="app-shell__settings-btn"
+              onClick={openAiSettings}
+              aria-haspopup="dialog"
+              aria-expanded={aiSettingsOpen}
+              aria-label="Configurações de IA"
+              title="Configurações de IA"
+            >
+              <Settings size={16} aria-hidden="true" />
+              <span>Configurações de IA</span>
+            </button>
+          ) : null}
         </header>
 
         <main className="app-shell__content">
@@ -162,6 +198,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
       </div>
 
       {passwordModalOpen ? <ChangePasswordModal onClose={closePasswordModal} /> : null}
+      {aiSettingsOpen ? <AiSettingsModal onClose={closeAiSettings} /> : null}
     </div>
   )
 }

@@ -1,0 +1,198 @@
+.ai-settings-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: color-mix(in oklab, var(--background) 70%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.ai-settings-modal__dialog {
+  width: min(100%, 480px);
+  max-height: min(90vh, 720px);
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-elevated, var(--surface, #fff));
+  box-shadow: var(--shadow-elevated);
+}
+
+.ai-settings-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ai-settings-modal__header h3 {
+  margin: 0;
+  color: var(--text-h);
+  font-size: 18px;
+}
+
+.ai-settings-modal__header p {
+  margin: 6px 0 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ai-settings-modal__close {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted-foreground);
+  background: color-mix(in oklab, var(--surface) 88%, transparent);
+  cursor: pointer;
+}
+
+.ai-settings-modal__close:hover {
+  color: var(--foreground);
+  border-color: color-mix(in oklab, var(--primary) 35%, var(--border));
+}
+
+.ai-settings-modal__close:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ai-settings-modal__loading {
+  margin: 0;
+  padding: 2rem 0;
+  text-align: center;
+  color: var(--muted-foreground);
+}
+
+.ai-settings-modal__form {
+  display: grid;
+  gap: 14px;
+}
+
+.ai-settings-modal__field {
+  display: grid;
+  gap: 8px;
+}
+
+.ai-settings-modal__field > span:first-child {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.ai-settings-modal__required {
+  color: var(--destructive);
+}
+
+.ai-settings-modal__field > input {
+  width: 100%;
+  height: 42px;
+  box-sizing: border-box;
+  border: 1px solid var(--input);
+  border-radius: 8px;
+  padding: 0 12px;
+  color: var(--foreground);
+  background: var(--surface);
+  font: inherit;
+  font-size: 14px;
+}
+
+.ai-settings-modal__field > input:focus-visible,
+.ai-settings-modal__close:focus-visible,
+.ai-settings-modal__primary:focus-visible,
+.ai-settings-modal__secondary:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.ai-settings-modal__hint {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: color-mix(in oklab, #9a6700 80%, var(--foreground));
+  background: color-mix(in oklab, #f5d76e 18%, transparent);
+  border: 1px solid color-mix(in oklab, #f5d76e 35%, transparent);
+}
+
+.ai-settings-modal__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in oklab, var(--destructive) 30%, transparent);
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--destructive) 10%, transparent);
+  color: var(--destructive);
+  font-size: 14px;
+}
+
+.ai-settings-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.ai-settings-modal__primary,
+.ai-settings-modal__secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  min-width: 0;
+  padding: 0 14px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.ai-settings-modal__primary {
+  border: 0;
+  color: var(--primary-foreground);
+  background: var(--gradient-primary);
+  box-shadow: var(--shadow-soft);
+}
+
+.ai-settings-modal__secondary {
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  background: var(--surface);
+}
+
+.ai-settings-modal__primary:disabled,
+.ai-settings-modal__secondary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.ai-settings-modal__spin {
+  animation: ai-settings-modal-spin 0.8s linear infinite;
+}
+
+@keyframes ai-settings-modal-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-settings-modal__spin {
+    animation: none;
+  }
+}

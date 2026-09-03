@@ -1013,20 +1013,6 @@
   box-shadow: var(--shadow-elevated);
 }
 
-.ai-generator-modal__dialog--settings {
-  width: min(100%, 480px);
-  max-height: min(90vh, 720px);
-  overflow: auto;
-}
-
-.ai-generator-modal__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
 .ai-generator-modal__dialog h3 {
   margin: 0;
   color: var(--text-h);
@@ -1040,29 +1026,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.ai-generator-modal__subtitle {
-  margin: 6px 0 0;
-  color: var(--muted-foreground);
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.ai-generator-settings {
-  display: grid;
-  gap: 14px;
-}
-
-.ai-generator-settings__hint {
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: 8px;
-  font-size: 12px;
-  line-height: 1.45;
-  color: color-mix(in oklab, #9a6700 80%, var(--foreground));
-  background: color-mix(in oklab, #f5d76e 18%, transparent);
-  border: 1px solid color-mix(in oklab, #f5d76e 35%, transparent);
 }
 
 .ai-generator-modal__actions {
