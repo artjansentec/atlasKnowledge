@@ -1,5 +1,6 @@
 # Build da aplicação React/Vite
-FROM node:22-alpine AS build
+# public.ecr.aws evita o 429 do Docker Hub no CodeBuild
+FROM public.ecr.aws/docker/library/node:22-alpine AS build
 
 WORKDIR /app
 
@@ -14,7 +15,7 @@ ENV VITE_API_URL=${VITE_API_URL}
 RUN npm run build
 
 # Servir arquivos estáticos com nginx
-FROM nginx:alpine
+FROM public.ecr.aws/docker/library/nginx:alpine
 
 ENV PORT=80
 
