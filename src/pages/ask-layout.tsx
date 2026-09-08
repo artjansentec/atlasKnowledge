@@ -1,6 +1,7 @@
 import { Outlet, Link, useNavigate, useParams } from 'react-router-dom'
 import { useEffect, useState, type MouseEvent } from 'react'
 import { MessageSquarePlus, MessagesSquare, Sparkles, Trash2 } from 'lucide-react'
+import { AiCredentialBanner } from '../components/ai-credential-banner'
 import {
   ASK_THREADS_EVENT,
   createThread,
@@ -9,12 +10,14 @@ import {
   upsertThread,
   type AskThread,
 } from '../lib/ask-threads'
+import { useAiSettingsStatus } from '../lib/ai-settings-status'
 import './css/ask.css'
 
 function AskLayoutPage() {
   const navigate = useNavigate()
   const { threadId: activeId } = useParams<{ threadId?: string }>()
   const [threads, setThreads] = useState<AskThread[]>([])
+  const { blocked: aiBlocked } = useAiSettingsStatus()
 
   useEffect(() => {
     document.title = 'Busca semântica RAG · Atlas Knowledge'
@@ -32,6 +35,7 @@ function AskLayoutPage() {
   }, [])
 
   function handleNew() {
+    if (aiBlocked) return
     const thread = createThread()
     upsertThread(thread)
     navigate(`/ask/${thread.id}`)
@@ -48,7 +52,7 @@ function AskLayoutPage() {
     <div className="ask-layout">
       <aside className="ask-sidebar" aria-label="Histórico de conversas RAG">
         <div className="ask-sidebar__top">
-          <button type="button" className="ask-new-btn bg-gradient-primary" onClick={handleNew}>
+          <button type="button" className="ask-new-btn bg-gradient-primary" onClick={handleNew} disabled={aiBlocked}>
             <MessageSquarePlus size={16} aria-hidden="true" />
             Nova conversa
           </button>
@@ -106,10 +110,15 @@ function AskLayoutPage() {
           <Link to="/ask" className="ask-mobile-bar__link">
             Conversas
           </Link>
-          <button type="button" className="ask-mobile-bar__new" onClick={handleNew}>
+          <button type="button" className="ask-mobile-bar__new" onClick={handleNew} disabled={aiBlocked}>
             Nova
           </button>
         </div>
+        {aiBlocked ? (
+          <div className="ask-main__banner">
+            <AiCredentialBanner />
+          </div>
+        ) : null}
         <Outlet />
       </div>
     </div>

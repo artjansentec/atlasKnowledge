@@ -444,6 +444,27 @@ a.app-shell__ai-card:hover {
   display: none;
 }
 
+.app-shell__settings-btn--warn {
+  color: #c2410c;
+  border-color: color-mix(in oklch, #c2410c 40%, var(--color-border));
+  background: color-mix(in oklch, #c2410c 8%, var(--color-surface));
+}
+
+.app-shell__settings-btn--warn:hover {
+  color: #9a3412;
+  border-color: color-mix(in oklch, #c2410c 55%, var(--color-border));
+  background: color-mix(in oklch, #c2410c 12%, var(--color-surface));
+}
+
+.app-shell__settings-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #ea580c;
+  box-shadow: 0 0 0 3px color-mix(in oklch, #ea580c 22%, transparent);
+}
+
 @media (min-width: 768px) {
   .app-shell__settings-btn span {
     display: inline;

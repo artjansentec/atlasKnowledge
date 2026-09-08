@@ -16,6 +16,7 @@ import {
   YAxis,
 } from 'recharts'
 import { DashboardPeriodPicker } from '../components/dashboard-period-picker'
+import { AiCredentialBanner } from '../components/ai-credential-banner'
 import {
   ChartSkeleton,
   EmptyState,
@@ -1052,6 +1053,8 @@ function AiMonitorContent() {
             <DashboardPeriodPicker value={range} onChange={setCustomRange} />
           </div>
         </header>
+
+        <AiCredentialBanner />
 
         {error ? (
           <div className="obs-panel">

@@ -10,6 +10,7 @@ import {
   type AskThread,
 } from '../lib/ask-threads'
 import { ragErrorMessage, searchRag } from '../lib/rag-api'
+import { useAiSettingsStatus } from '../lib/ai-settings-status'
 
 function AskThreadPage() {
   const { threadId } = useParams<{ threadId: string }>()
@@ -20,12 +21,13 @@ function AskThreadPage() {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const sendingRef = useRef(false)
   const bootstrappedRef = useRef<string | null>(null)
+  const { blocked: aiBlocked, loading: aiStatusLoading } = useAiSettingsStatus()
 
   const sendQuestion = useEffectEvent(async (raw: string) => {
     if (!threadId || sendingRef.current) return
 
     const text = raw.trim()
-    if (!text) return
+    if (!text || aiBlocked) return
 
     sendingRef.current = true
     setLoading(true)
@@ -82,7 +84,7 @@ function AskThreadPage() {
   }, [thread?.messages, loading])
 
   useEffect(() => {
-    if (!threadId || !thread) return
+    if (!threadId || !thread || aiStatusLoading) return
     if (bootstrappedRef.current === threadId) return
 
     bootstrappedRef.current = threadId
@@ -91,8 +93,12 @@ function AskThreadPage() {
     if (!initial) return
 
     sessionStorage.removeItem(key)
+    if (aiBlocked) {
+      setQuestion(initial)
+      return
+    }
     void sendQuestion(initial)
-  }, [threadId, thread])
+  }, [threadId, thread, aiStatusLoading, aiBlocked])
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault()
@@ -196,8 +202,12 @@ function AskThreadPage() {
             ref={inputRef}
             rows={2}
             value={question}
-            disabled={loading}
-            placeholder="Pergunte algo sobre os projetos..."
+            disabled={loading || aiBlocked}
+            placeholder={
+              aiBlocked
+                ? 'Credencial de IA não configurada — o módulo não vai funcionar'
+                : 'Pergunte algo sobre os projetos...'
+            }
             onChange={(event) => setQuestion(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === 'Enter' && !event.shiftKey) {
@@ -210,7 +220,7 @@ function AskThreadPage() {
         <button
           type="submit"
           className="ask-composer__send bg-gradient-primary"
-          disabled={loading || !question.trim()}
+          disabled={loading || aiBlocked || !question.trim()}
           aria-label="Enviar pergunta"
         >
           {loading ? <Loader2 size={18} className="ask-spin" /> : <SendHorizontal size={18} />}

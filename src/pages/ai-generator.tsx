@@ -36,6 +36,8 @@ import {
 } from '../lib/projects-api'
 import { showToast } from '../components/app-alerts'
 import { AtlasSelect } from '../components/atlas-select'
+import { AiCredentialBanner } from '../components/ai-credential-banner'
+import { useAiSettingsStatus } from '../lib/ai-settings-status'
 import './css/ai-generator.css'
 
 const ACCEPTED = [
@@ -276,6 +278,7 @@ function AiGeneratorPage() {
   const navigate = useNavigate()
   const { slug: routeSlug } = useParams()
   const { user, canManageProject } = useAuth()
+  const { blocked: aiBlocked } = useAiSettingsStatus()
   const lockedToProject = Boolean(routeSlug)
   const canCreateProjects = Boolean(user)
 
@@ -545,6 +548,11 @@ function AiGeneratorPage() {
   async function handleGenerate(event?: FormEvent) {
     event?.preventDefault()
 
+    if (aiBlocked) {
+      setError('Credencial de IA não configurada. Este módulo não vai funcionar até que a chave de acesso seja informada.')
+      return
+    }
+
     if (!projectName.trim() && projectMode === 'new' && !lockedToProject) {
       setError('Informe o nome do projeto.')
       return
@@ -684,6 +692,8 @@ function AiGeneratorPage() {
             documentação estruturada do projeto.
           </p>
         </header>
+
+        <AiCredentialBanner />
 
         <div className="ai-generator__tabs" role="tablist" aria-label="Seções do gerador">
           <button
@@ -1030,7 +1040,13 @@ function AiGeneratorPage() {
           </div>
         </section>
 
-        <button type="button" className="ai-generator__submit" disabled={running} onClick={() => void handleGenerate()}>
+        <button
+          type="button"
+          className="ai-generator__submit"
+          disabled={running || aiBlocked}
+          title={aiBlocked ? 'Credencial de IA não configurada — o módulo não vai funcionar' : undefined}
+          onClick={() => void handleGenerate()}
+        >
           {running ? (
             <>
               <Loader2 size={16} className="ai-generator__spin" aria-hidden="true" />

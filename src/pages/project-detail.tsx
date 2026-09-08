@@ -39,6 +39,7 @@ import {
   X,
 } from 'lucide-react'
 import { confirmDanger, showToast } from '../components/app-alerts'
+import { AiCredentialBanner } from '../components/ai-credential-banner'
 import { DevResponsibleSelect } from '../components/dev-responsible-select'
 import { DocumentReaderDock } from '../components/document-reader-dock'
 import { MarkdownView } from '../components/markdown-view'
@@ -46,6 +47,7 @@ import { StatusBadge } from '../components/status-badge'
 import { useProjectStatuses } from '../lib/project-status'
 import { ApiError, fetchAuthenticatedBlob } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import { useAiSettingsStatus } from '../lib/ai-settings-status'
 import { formatDateBR } from '../lib/date'
 import { buildExportSections } from '../lib/document-export-types'
 import {
@@ -269,6 +271,7 @@ function ProjectDetailPage() {
   const { slug } = useParams()
   const navigate = useNavigate()
   const { canManageProject, canManageDevProject, canViewDev, isCurrentUserAdmin } = useAuth()
+  const { blocked: aiBlocked } = useAiSettingsStatus()
   const [searchParams, setSearchParams] = useSearchParams()
   const requestedTab = getTabFromSearchParams(searchParams)
   const requestedSectionId = searchParams.get('section')
@@ -855,13 +858,16 @@ function ProjectDetailPage() {
           {canManageDoc && (
             <Link
               to={`/projects/${currentProject.slug}/ai-generator`}
-              className="project-detail__ai-btn"
+              className={`project-detail__ai-btn${aiBlocked ? ' is-blocked' : ''}`}
+              title={aiBlocked ? 'Credencial de IA não configurada — o módulo não vai funcionar' : undefined}
             >
               <Sparkles size={15} aria-hidden="true" />
               Gerar com IA
             </Link>
           )}
         </header>
+
+        {canManageDoc && aiBlocked ? <AiCredentialBanner compact /> : null}
 
         {canSeeDev && (
           <div className="project-view-switch" role="tablist" aria-label="Trocar visualização do projeto">

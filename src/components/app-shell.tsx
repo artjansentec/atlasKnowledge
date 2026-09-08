@@ -17,6 +17,7 @@ import {
 import { AiSettingsModal } from './ai-settings-modal'
 import { ChangePasswordModal } from './change-password-modal'
 import { useAuth } from '../lib/auth'
+import { OPEN_AI_SETTINGS_EVENT, useAiSettingsStatus } from '../lib/ai-settings-status'
 import './app-shell.css'
 
 const navItems = [
@@ -37,6 +38,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const { user, logout, isCurrentUserAdmin } = useAuth()
+  const { blocked: aiCredentialsMissing } = useAiSettingsStatus()
   const [q, setQ] = useState('')
   const [passwordModalOpen, setPasswordModalOpen] = useState(false)
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false)
@@ -47,6 +49,17 @@ export function AppShell({ children }: { children?: ReactNode }) {
   const closeMobileNav = useCallback(() => setMobileNavOpen(false), [])
   const visibleNavItems = navItems.filter((item) => !item.adminOnly || isCurrentUserAdmin())
   const canOpenAiSettings = isCurrentUserAdmin()
+
+  useEffect(() => {
+    if (!canOpenAiSettings) return
+
+    function onOpenSettings() {
+      setAiSettingsOpen(true)
+    }
+
+    window.addEventListener(OPEN_AI_SETTINGS_EVENT, onOpenSettings)
+    return () => window.removeEventListener(OPEN_AI_SETTINGS_EVENT, onOpenSettings)
+  }, [canOpenAiSettings])
 
   useEffect(() => {
     setMobileNavOpen(false)
@@ -152,24 +165,6 @@ export function AppShell({ children }: { children?: ReactNode }) {
                 </li>
               )
             })}
-            {canOpenAiSettings ? (
-              <li>
-                <button
-                  type="button"
-                  className={`app-shell__nav-link${aiSettingsOpen ? ' app-shell__nav-link--active' : ''}`}
-                  onClick={() => {
-                    closeMobileNav()
-                    openAiSettings()
-                  }}
-                  aria-haspopup="dialog"
-                  aria-expanded={aiSettingsOpen}
-                >
-                  <Settings size={16} aria-hidden="true" />
-                  Configurações de IA
-                  {aiSettingsOpen ? <span className="app-shell__nav-dot" aria-hidden="true" /> : null}
-                </button>
-              </li>
-            ) : null}
           </ul>
         </nav>
 
@@ -248,15 +243,16 @@ export function AppShell({ children }: { children?: ReactNode }) {
           {canOpenAiSettings ? (
             <button
               type="button"
-              className="app-shell__settings-btn"
+              className={`app-shell__settings-btn${aiCredentialsMissing ? ' app-shell__settings-btn--warn' : ''}`}
               onClick={openAiSettings}
               aria-haspopup="dialog"
               aria-expanded={aiSettingsOpen}
-              aria-label="Configurações de IA"
-              title="Configurações de IA"
+              aria-label={aiCredentialsMissing ? 'Configurações de IA — credencial não configurada' : 'Configurações de IA'}
+              title={aiCredentialsMissing ? 'Credencial de IA não configurada' : 'Configurações de IA'}
             >
               <Settings size={16} aria-hidden="true" />
               <span>Configurações de IA</span>
+              {aiCredentialsMissing ? <span className="app-shell__settings-dot" aria-hidden="true" /> : null}
             </button>
           ) : null}
         </header>

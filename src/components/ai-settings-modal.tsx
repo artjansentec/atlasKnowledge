@@ -8,6 +8,7 @@ import {
   getProviderMeta,
   isCustomModelSelected,
   resolveModelSelectValue,
+  notifyAiSettingsUpdated,
   updateAiSettings,
   type AiSettings,
 } from '../lib/ai-settings-api'
@@ -125,6 +126,7 @@ export function AiSettingsModal({ onClose }: AiSettingsModalProps) {
         apiKey,
         baseUrl,
       })
+      notifyAiSettingsUpdated()
       showToast('Configurações de IA salvas', 'success')
       onClose()
     } catch (err) {

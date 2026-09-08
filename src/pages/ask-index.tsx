@@ -7,6 +7,7 @@ import {
   loadThreads,
   upsertThread,
 } from '../lib/ask-threads'
+import { useAiSettingsStatus } from '../lib/ai-settings-status'
 
 const SUGGESTIONS = [
   'Quais projetos usam PostgreSQL?',
@@ -17,6 +18,7 @@ const SUGGESTIONS = [
 
 function AskIndexPage() {
   const navigate = useNavigate()
+  const { blocked: aiBlocked } = useAiSettingsStatus()
 
   useEffect(() => {
     const existing = loadThreads()
@@ -26,6 +28,7 @@ function AskIndexPage() {
   }, [navigate])
 
   function startWith(prompt?: string) {
+    if (aiBlocked) return
     const thread = createThread()
     upsertThread(thread)
     if (prompt) sessionStorage.setItem(initialPromptKey(thread.id), prompt)
@@ -52,6 +55,7 @@ function AskIndexPage() {
           type="button"
           className="ask-index__cta bg-gradient-primary shadow-elevated"
           onClick={() => startWith()}
+          disabled={aiBlocked}
         >
           <Sparkles size={16} aria-hidden="true" />
           Iniciar nova conversa
@@ -66,6 +70,7 @@ function AskIndexPage() {
                 type="button"
                 className="ask-suggestion"
                 onClick={() => startWith(suggestion)}
+                disabled={aiBlocked}
               >
                 {suggestion}
               </button>

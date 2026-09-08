@@ -1,6 +1,7 @@
 import { SpeedInsights } from '@vercel/speed-insights/react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/app-shell'
+import { AiSettingsStatusProvider } from './lib/ai-settings-status'
 import { AuthProvider, useAuth } from './lib/auth'
 import { ProjectStatusProvider } from './lib/project-status'
 import './index.css'
@@ -33,9 +34,11 @@ function ProtectedLayout() {
 
   return (
     <ProjectStatusProvider>
-      <AppShell>
-        <Outlet />
-      </AppShell>
+      <AiSettingsStatusProvider>
+        <AppShell>
+          <Outlet />
+        </AppShell>
+      </AiSettingsStatusProvider>
     </ProjectStatusProvider>
   )
 }

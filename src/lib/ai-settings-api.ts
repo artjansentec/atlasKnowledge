@@ -1,4 +1,4 @@
-import { apiRequest } from './api'
+import { apiRequest, ApiError } from './api'
 
 export const AI_PROVIDERS = ['openai', 'anthropic', 'gemini', 'ollama', 'azure'] as const
 
@@ -108,6 +108,13 @@ type AiSettingsRaw = {
   api_key?: string
   baseUrl?: string
   base_url?: string
+  configured?: boolean
+  apiKeySet?: boolean
+  api_key_set?: boolean
+  hasApiKey?: boolean
+  has_api_key?: boolean
+  apiKeyConfigured?: boolean
+  api_key_configured?: boolean
 }
 
 function normalizeAiSettings(raw: AiSettingsRaw | null | undefined): AiSettings {
@@ -117,6 +124,105 @@ function normalizeAiSettings(raw: AiSettingsRaw | null | undefined): AiSettings 
     model: raw?.model?.trim() || getProviderMeta(provider).models[0] || '',
     apiKey: (raw?.apiKey ?? raw?.api_key ?? '').trim(),
     baseUrl: (raw?.baseUrl ?? raw?.base_url ?? '').trim(),
+  }
+}
+
+export const AI_SETTINGS_UPDATED_EVENT = 'atlas:ai-settings-updated'
+export const OPEN_AI_SETTINGS_EVENT = 'atlas:open-ai-settings'
+
+export function notifyAiSettingsUpdated() {
+  window.dispatchEvent(new Event(AI_SETTINGS_UPDATED_EVENT))
+}
+
+export function requestOpenAiSettings() {
+  window.dispatchEvent(new Event(OPEN_AI_SETTINGS_EVENT))
+}
+
+export type AiCredentialGap = 'apiKey' | 'baseUrl' | 'model' | 'settings' | null
+
+export type AiCredentialSnapshot = {
+  configured: boolean | null
+  gap: AiCredentialGap
+  provider: string
+}
+
+function readBoolFlag(raw: AiSettingsRaw | null | undefined, keys: (keyof AiSettingsRaw)[]): boolean | undefined {
+  if (!raw) return undefined
+  for (const key of keys) {
+    const value = raw[key]
+    if (typeof value === 'boolean') return value
+  }
+  return undefined
+}
+
+export function resolveAiCredentialGap(raw: AiSettingsRaw | null | undefined): AiCredentialGap {
+  if (!raw) return 'settings'
+
+  const provider = raw.provider?.trim() || ''
+  const model = raw.model?.trim() || ''
+  const apiKey = (raw.apiKey ?? raw.api_key ?? '').trim()
+  const baseUrl = (raw.baseUrl ?? raw.base_url ?? '').trim()
+  const configuredFlag = readBoolFlag(raw, ['configured'])
+  const apiKeySet = readBoolFlag(raw, [
+    'apiKeySet',
+    'api_key_set',
+    'hasApiKey',
+    'has_api_key',
+    'apiKeyConfigured',
+    'api_key_configured',
+  ])
+  const meta = getProviderMeta(provider || 'openai')
+  const hasKey = apiKeySet ?? Boolean(apiKey)
+
+  if (configuredFlag === true) return null
+
+  const looksEmpty = !provider && !model && !apiKey && !baseUrl && apiKeySet !== true
+  if (looksEmpty) return 'settings'
+
+  if (meta.apiKeyRequired && !hasKey) return 'apiKey'
+  if (!model) return 'model'
+  if (meta.baseUrlRequired && !baseUrl) return 'baseUrl'
+  if (configuredFlag === false) return 'settings'
+  return null
+}
+
+function snapshotFromRaw(raw: AiSettingsRaw | null | undefined): AiCredentialSnapshot {
+  const gap = resolveAiCredentialGap(raw)
+  return {
+    configured: gap === null,
+    gap,
+    provider: raw?.provider?.trim() || '',
+  }
+}
+
+async function fetchPublicAiCredentialSnapshot(): Promise<AiCredentialSnapshot> {
+  try {
+    const data = await apiRequest<AiSettingsRaw>('/ai-settings/status')
+    if (typeof data?.configured === 'boolean') {
+      return {
+        configured: data.configured,
+        gap: data.configured ? null : resolveAiCredentialGap({ ...data, configured: false }) ?? 'settings',
+        provider: data.provider?.trim() || '',
+      }
+    }
+    return snapshotFromRaw(data)
+  } catch {
+    return { configured: null, gap: null, provider: '' }
+  }
+}
+
+export async function fetchAiCredentialSnapshot(): Promise<AiCredentialSnapshot> {
+  try {
+    const data = await apiRequest<AiSettingsRaw>('/ai-settings')
+    return snapshotFromRaw(data)
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 404) {
+      return { configured: false, gap: 'settings', provider: '' }
+    }
+    if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+      return fetchPublicAiCredentialSnapshot()
+    }
+    return { configured: null, gap: null, provider: '' }
   }
 }
 
