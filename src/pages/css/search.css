@@ -349,7 +349,7 @@
   }
 
   .search-hero h1 {
-    font-size: 38px;
+    font-size: clamp(28px, 9vw, 38px);
   }
 
   .search-result {
@@ -358,5 +358,9 @@
 
   .search-result__arrow {
     display: none;
+  }
+
+  .search-tabs {
+    -webkit-overflow-scrolling: touch;
   }
 }

@@ -96,6 +96,19 @@
   }
 }
 
+@media (max-width: 767px) {
+  .document-reader-dock {
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    left: max(12px, env(safe-area-inset-left));
+  }
+
+  .document-reader-dock__menu {
+    top: auto;
+    bottom: calc(100% + 8px);
+    left: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .document-reader-dock__button {
     transition: none;

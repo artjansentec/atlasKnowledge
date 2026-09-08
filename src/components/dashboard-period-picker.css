@@ -145,3 +145,18 @@
 .dashboard-period-picker-popper .MuiPickersMonth-monthButton:hover {
   background: rgba(56, 173, 72, 0.1);
 }
+
+@media (max-width: 767px) {
+  .dashboard-period {
+    display: flex;
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .dashboard-period .dashboard-period-picker-field {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+}

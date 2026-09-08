@@ -1,6 +1,6 @@
 import { Outlet, Link, useNavigate, useParams } from 'react-router-dom'
-import { useEffect, useState, type MouseEvent } from 'react'
-import { MessageSquarePlus, MessagesSquare, Sparkles, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useState, type MouseEvent } from 'react'
+import { MessageSquarePlus, MessagesSquare, Sparkles, Trash2, X } from 'lucide-react'
 import { AiCredentialBanner } from '../components/ai-credential-banner'
 import {
   ASK_THREADS_EVENT,
@@ -17,7 +17,9 @@ function AskLayoutPage() {
   const navigate = useNavigate()
   const { threadId: activeId } = useParams<{ threadId?: string }>()
   const [threads, setThreads] = useState<AskThread[]>([])
+  const [historyOpen, setHistoryOpen] = useState(false)
   const { blocked: aiBlocked } = useAiSettingsStatus()
+  const closeHistory = useCallback(() => setHistoryOpen(false), [])
 
   useEffect(() => {
     document.title = 'Busca semântica RAG · Atlas Knowledge'
@@ -34,10 +36,40 @@ function AskLayoutPage() {
     }
   }, [])
 
+  useEffect(() => {
+    setHistoryOpen(false)
+  }, [activeId])
+
+  useEffect(() => {
+    function onResize() {
+      if (window.innerWidth >= 1024) setHistoryOpen(false)
+    }
+
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  useEffect(() => {
+    if (!historyOpen) return
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setHistoryOpen(false)
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = ''
+    }
+  }, [historyOpen])
+
   function handleNew() {
     if (aiBlocked) return
     const thread = createThread()
     upsertThread(thread)
+    setHistoryOpen(false)
     navigate(`/ask/${thread.id}`)
   }
 
@@ -50,11 +82,32 @@ function AskLayoutPage() {
 
   return (
     <div className="ask-layout">
-      <aside className="ask-sidebar" aria-label="Histórico de conversas RAG">
+      {historyOpen ? (
+        <button
+          type="button"
+          className="ask-sidebar__backdrop"
+          aria-label="Fechar histórico"
+          onClick={closeHistory}
+        />
+      ) : null}
+
+      <aside
+        id="ask-history-sidebar"
+        className={`ask-sidebar${historyOpen ? ' ask-sidebar--open' : ''}`}
+        aria-label="Histórico de conversas RAG"
+      >
         <div className="ask-sidebar__top">
           <button type="button" className="ask-new-btn bg-gradient-primary" onClick={handleNew} disabled={aiBlocked}>
             <MessageSquarePlus size={16} aria-hidden="true" />
             Nova conversa
+          </button>
+          <button
+            type="button"
+            className="ask-sidebar__close"
+            onClick={closeHistory}
+            aria-label="Fechar histórico"
+          >
+            <X size={18} aria-hidden="true" />
           </button>
         </div>
 
@@ -74,6 +127,7 @@ function AskLayoutPage() {
                 key={thread.id}
                 to={`/ask/${thread.id}`}
                 className={`ask-thread-item${active ? ' ask-thread-item--active' : ''}`}
+                onClick={closeHistory}
               >
                 <MessagesSquare size={16} className="ask-thread-item__icon" aria-hidden="true" />
                 <div className="ask-thread-item__body">
@@ -107,9 +161,15 @@ function AskLayoutPage() {
 
       <div className="ask-main">
         <div className="ask-mobile-bar">
-          <Link to="/ask" className="ask-mobile-bar__link">
+          <button
+            type="button"
+            className="ask-mobile-bar__link"
+            onClick={() => setHistoryOpen(true)}
+            aria-controls="ask-history-sidebar"
+            aria-expanded={historyOpen}
+          >
             Conversas
-          </Link>
+          </button>
           <button type="button" className="ask-mobile-bar__new" onClick={handleNew} disabled={aiBlocked}>
             Nova
           </button>

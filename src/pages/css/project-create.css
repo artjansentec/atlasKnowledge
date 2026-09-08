@@ -370,6 +370,12 @@
     align-items: stretch;
     flex-direction: column-reverse;
   }
+
+  .project-create__primary-action,
+  .project-create__secondary-action {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 .project-create__dev-hint {

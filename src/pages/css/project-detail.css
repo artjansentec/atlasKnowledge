@@ -2577,6 +2577,14 @@
     position: static;
   }
 
+  .project-section-tree {
+    max-height: 40vh;
+  }
+
+  .project-section-tree__move-actions {
+    opacity: 1;
+  }
+
   .project-editor__pane + .project-editor__pane {
     border-top: 1px solid var(--border);
     border-left: 0;
@@ -2603,6 +2611,40 @@
     transform: rotate(90deg);
   }
 
+  .project-file-preview img,
+  .project-attachment-dialog img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .project-file-preview__docx-body {
+    overflow-x: auto;
+  }
+
+  .project-attachment-dialog .MuiDialog-paper {
+    margin: 12px;
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+
+  .project-attachment-dialog__header {
+    flex-wrap: wrap;
+    padding: 14px;
+  }
+
+  .project-file-preview {
+    margin: 12px;
+  }
+
+  .project-reader__bar {
+    padding: 10px 12px;
+    padding-top: calc(10px + env(safe-area-inset-top));
+  }
+
+  .project-reader__content {
+    padding: 24px 16px 48px;
+  }
+
   .project-reader__bar,
   .project-reader__bar-main {
     align-items: stretch;
@@ -2617,6 +2659,7 @@
   .project-section-switcher,
   .project-section-pager__button {
     width: 100%;
+    min-width: 0;
     max-width: none;
   }
 
@@ -2624,6 +2667,18 @@
     text-align: left;
   }
 
+  .project-view-switch--reader {
+    width: 100%;
+  }
+
+  .project-view-switch--reader .project-view-switch__item {
+    flex: 1;
+    justify-content: center;
+  }
+
+  .project-reader__exit-button kbd {
+    display: none;
+  }
 }
 
 @media (max-width: 620px) {
@@ -2633,6 +2688,19 @@
 
   .project-lesson-guide__grid {
     grid-template-columns: 1fr;
+  }
+
+  .project-detail__title h1 {
+    font-size: clamp(26px, 8vw, 32px);
+  }
+
+  .project-detail__ai-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .project-detail__tabs {
+    -webkit-overflow-scrolling: touch;
   }
 
   .project-document-card__toolbar,

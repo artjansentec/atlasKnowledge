@@ -463,6 +463,16 @@
   }
 
   .projects-hero h1 {
-    font-size: 38px;
+    font-size: clamp(28px, 9vw, 38px);
+  }
+
+  .projects-hero__aside {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .projects-hero__action {
+    width: 100%;
+    justify-content: center;
   }
 }

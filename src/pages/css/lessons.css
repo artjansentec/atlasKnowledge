@@ -496,7 +496,7 @@
   }
 
   .lessons-hero h1 {
-    font-size: 38px;
+    font-size: clamp(28px, 9vw, 38px);
   }
 
   .lesson-card,

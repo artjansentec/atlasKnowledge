@@ -185,6 +185,18 @@
   white-space: pre;
 }
 
+@media (max-width: 767px) {
+  .markdown-view img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .markdown-view__table-wrap,
+  .markdown-view__code-block {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 .markdown-view__code-lang {
   display: block;
   margin-bottom: 8px;

@@ -1049,10 +1049,31 @@
     padding: 16px 14px 32px;
   }
 
+  .ai-generator__breadcrumb {
+    flex-wrap: wrap;
+  }
+
+  .ai-generator__header-top {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
   .ai-generator__submit,
-  .ai-generator__primary-btn {
+  .ai-generator__primary-btn,
+  .ai-generator__secondary-btn,
+  .ai-generator__danger-btn {
     width: 100%;
     min-width: 0;
+  }
+
+  .ai-generator-modal__actions {
+    flex-direction: column-reverse;
+  }
+
+  .ai-generator-modal__actions .ai-generator__secondary-btn,
+  .ai-generator-modal__actions .ai-generator__danger-btn,
+  .ai-generator-modal__actions .ai-generator__primary-btn {
+    width: 100%;
   }
 }
 

@@ -196,3 +196,23 @@
     animation: none;
   }
 }
+
+@media (max-width: 767px) {
+  .ai-settings-modal {
+    padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom));
+    place-items: end center;
+  }
+
+  .ai-settings-modal__dialog {
+    max-height: min(90dvh, 720px);
+  }
+
+  .ai-settings-modal__actions {
+    flex-direction: column-reverse;
+  }
+
+  .ai-settings-modal__primary,
+  .ai-settings-modal__secondary {
+    width: 100%;
+  }
+}
