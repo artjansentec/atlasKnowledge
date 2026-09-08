@@ -1,16 +1,18 @@
-import { type ReactNode, useCallback, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   Activity,
   FolderKanban,
   Lightbulb,
   LogOut,
+  Menu,
   MessagesSquare,
   Search,
   Settings,
   Sparkles,
   UserCircle,
   UserPlus,
+  X,
 } from 'lucide-react'
 import { AiSettingsModal } from './ai-settings-modal'
 import { ChangePasswordModal } from './change-password-modal'
@@ -38,11 +40,42 @@ export function AppShell({ children }: { children?: ReactNode }) {
   const [q, setQ] = useState('')
   const [passwordModalOpen, setPasswordModalOpen] = useState(false)
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const closePasswordModal = useCallback(() => setPasswordModalOpen(false), [])
   const closeAiSettings = useCallback(() => setAiSettingsOpen(false), [])
   const openAiSettings = useCallback(() => setAiSettingsOpen(true), [])
+  const closeMobileNav = useCallback(() => setMobileNavOpen(false), [])
   const visibleNavItems = navItems.filter((item) => !item.adminOnly || isCurrentUserAdmin())
   const canOpenAiSettings = isCurrentUserAdmin()
+
+  useEffect(() => {
+    setMobileNavOpen(false)
+  }, [pathname])
+
+  useEffect(() => {
+    function onResize() {
+      if (window.innerWidth >= 768) setMobileNavOpen(false)
+    }
+
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  useEffect(() => {
+    if (!mobileNavOpen) return
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setMobileNavOpen(false)
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.body.style.overflow = ''
+    }
+  }, [mobileNavOpen])
 
   const currentUserInitials = (user?.name ?? '')
     .split(' ')
@@ -65,16 +98,38 @@ export function AppShell({ children }: { children?: ReactNode }) {
 
   return (
     <div className="app-shell">
-      <aside className="app-shell__sidebar">
-        <Link to="/projects" className="app-shell__brand" aria-label="Ir para projetos">
-          <div className="app-shell__brand-icon bg-gradient-primary">
-            <Sparkles size={16} strokeWidth={2.5} aria-hidden="true" />
-          </div>
-          <div className="app-shell__brand-text">
-            <div className="app-shell__brand-title">Atlas Knowledge</div>
-            <div className="app-shell__brand-subtitle">knowledge base</div>
-          </div>
-        </Link>
+      {mobileNavOpen ? (
+        <button
+          type="button"
+          className="app-shell__backdrop"
+          aria-label="Fechar menu"
+          onClick={closeMobileNav}
+        />
+      ) : null}
+
+      <aside
+        id="app-shell-sidebar"
+        className={`app-shell__sidebar${mobileNavOpen ? ' app-shell__sidebar--open' : ''}`}
+      >
+        <div className="app-shell__sidebar-head">
+          <Link to="/projects" className="app-shell__brand" aria-label="Ir para projetos">
+            <div className="app-shell__brand-icon bg-gradient-primary">
+              <Sparkles size={16} strokeWidth={2.5} aria-hidden="true" />
+            </div>
+            <div className="app-shell__brand-text">
+              <div className="app-shell__brand-title">Atlas Knowledge</div>
+              <div className="app-shell__brand-subtitle">knowledge base</div>
+            </div>
+          </Link>
+          <button
+            type="button"
+            className="app-shell__sidebar-close"
+            onClick={closeMobileNav}
+            aria-label="Fechar menu"
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        </div>
 
         <nav className="app-shell__sidebar-nav app-shell__nav" aria-label="Navegação principal">
           <div className="app-shell__nav-label">Navegação</div>
@@ -102,7 +157,10 @@ export function AppShell({ children }: { children?: ReactNode }) {
                 <button
                   type="button"
                   className={`app-shell__nav-link${aiSettingsOpen ? ' app-shell__nav-link--active' : ''}`}
-                  onClick={openAiSettings}
+                  onClick={() => {
+                    closeMobileNav()
+                    openAiSettings()
+                  }}
                   aria-haspopup="dialog"
                   aria-expanded={aiSettingsOpen}
                 >
@@ -119,7 +177,10 @@ export function AppShell({ children }: { children?: ReactNode }) {
           <button
             type="button"
             className="app-shell__profile-card"
-            onClick={() => setPasswordModalOpen(true)}
+            onClick={() => {
+              closeMobileNav()
+              setPasswordModalOpen(true)
+            }}
             aria-label="Alterar senha"
           >
             <div className="app-shell__profile-avatar bg-gradient-primary" aria-hidden="true">
@@ -153,6 +214,16 @@ export function AppShell({ children }: { children?: ReactNode }) {
 
       <div className="app-shell__main">
         <header className="app-shell__header">
+          <button
+            type="button"
+            className="app-shell__menu-btn"
+            onClick={() => setMobileNavOpen((open) => !open)}
+            aria-label={mobileNavOpen ? 'Fechar menu' : 'Abrir menu'}
+            aria-controls="app-shell-sidebar"
+            aria-expanded={mobileNavOpen}
+          >
+            <Menu size={18} aria-hidden="true" />
+          </button>
           <form
             className="app-shell__search-form"
             role="search"
