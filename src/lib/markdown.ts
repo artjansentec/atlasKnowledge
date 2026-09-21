@@ -19,6 +19,7 @@ export type InlineSegment =
   | { type: 'italic'; children: InlineSegment[] }
   | { type: 'boldItalic'; children: InlineSegment[] }
   | { type: 'strike'; children: InlineSegment[] }
+  | { type: 'underline'; children: InlineSegment[] }
   | { type: 'code'; text: string }
   | { type: 'link'; href: string; children: InlineSegment[] }
   | { type: 'citation'; kind: 'arquivo' | 'secao'; key: string }
@@ -136,6 +137,16 @@ export function parseInlineMarkdown(content: string, depth = 0): InlineSegment[]
         children: parseInlineMarkdown(strike.inner, depth + 1),
       })
       index = strike.end
+      continue
+    }
+
+    const underline = parseDelimited(content, index, '++', '++')
+    if (underline) {
+      segments.push({
+        type: 'underline',
+        children: parseInlineMarkdown(underline.inner, depth + 1),
+      })
+      index = underline.end
       continue
     }
 

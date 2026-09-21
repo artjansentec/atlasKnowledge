@@ -63,6 +63,11 @@
   color: color-mix(in oklch, var(--foreground) 70%, transparent);
 }
 
+.markdown-view u {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .markdown-view__inline-code {
   border: 1px solid color-mix(in oklch, var(--foreground) 12%, transparent);
   border-radius: 6px;

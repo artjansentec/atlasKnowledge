@@ -187,6 +187,10 @@ function renderSegments(
       return <del key={key}>{nested(segment.children)}</del>
     }
 
+    if (segment.type === 'underline') {
+      return <u key={key}>{nested(segment.children)}</u>
+    }
+
     if (segment.type === 'code') {
       return (
         <code key={key} className="markdown-view__inline-code">

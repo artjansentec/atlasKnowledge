@@ -15,6 +15,7 @@ import {
   TableRow,
   Tab,
   TextRun,
+  UnderlineType,
   WidthType,
   Bookmark,
   PageReference,
@@ -61,6 +62,7 @@ function blackText(
     bold?: boolean
     italics?: boolean
     strike?: boolean
+    underline?: boolean
     size?: number
   } = {},
 ) {
@@ -71,6 +73,7 @@ function blackText(
     bold: options.bold,
     italics: options.italics,
     strike: options.strike,
+    underline: options.underline ? { type: UnderlineType.SINGLE } : undefined,
     color: ABNT_BLACK,
   })
 }
@@ -170,14 +173,26 @@ function sectionHeadingParagraph(title: string, depth: number, bookmarkId: strin
 
 function inlineRuns(
   text: string,
-  options: { bold?: boolean; italics?: boolean; strike?: boolean; size?: number } = {},
+  options: {
+    bold?: boolean
+    italics?: boolean
+    strike?: boolean
+    underline?: boolean
+    size?: number
+  } = {},
 ) {
   return flattenInlineRuns(parseInlineMarkdown(text), options)
 }
 
 function flattenInlineRuns(
   segments: ReturnType<typeof parseInlineMarkdown>,
-  options: { bold?: boolean; italics?: boolean; strike?: boolean; size?: number } = {},
+  options: {
+    bold?: boolean
+    italics?: boolean
+    strike?: boolean
+    underline?: boolean
+    size?: number
+  } = {},
 ): TextRun[] {
   return segments.flatMap((segment) => {
     if (segment.type === 'text') {
@@ -223,6 +238,10 @@ function flattenInlineRuns(
 
     if (segment.type === 'strike') {
       return flattenInlineRuns(segment.children, { ...options, strike: true })
+    }
+
+    if (segment.type === 'underline') {
+      return flattenInlineRuns(segment.children, { ...options, underline: true })
     }
 
     return []

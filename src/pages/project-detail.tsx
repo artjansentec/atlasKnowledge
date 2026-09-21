@@ -23,14 +23,19 @@ import {
   FileSpreadsheet,
   FileText,
   FileType2,
+  Heading1,
   Heading2,
+  Heading3,
+  Heading4,
   History,
   Italic,
   Lightbulb,
   Link2,
   List,
+  ListChecks,
   ListOrdered,
   Minimize2,
+  Minus,
   Paperclip,
   PencilLine,
   Plus,
@@ -38,9 +43,12 @@ import {
   Rocket,
   Save,
   Sparkles,
+  Strikethrough,
+  Table,
   Tag,
   Trash2,
   Trophy,
+  Underline,
   Users,
   X,
 } from 'lucide-react'
@@ -1208,32 +1216,89 @@ function DocView({
     }
   }
 
-  function prefixSelectedLines(prefix: string) {
+  function getSelectedLineBlock() {
     const textarea = textareaRef.current
     const start = textarea?.selectionStart ?? draft.length
     const end = textarea?.selectionEnd ?? start
     const lineStart = draft.lastIndexOf('\n', start - 1) + 1
     const nextNewline = draft.indexOf('\n', end)
     const lineEnd = nextNewline === -1 ? draft.length : nextNewline
-    const block = draft.slice(lineStart, lineEnd)
-    const lines = block.split('\n')
-    const numberedPrefix = prefix === '1. '
-    const hasPrefix = (line: string) =>
-      numberedPrefix ? /^\d+\.\s/.test(line) : line.startsWith(prefix)
-    const stripPrefix = (line: string) =>
-      numberedPrefix ? line.replace(/^\d+\.\s/, '') : line.slice(prefix.length)
-    const nonEmpty = lines.filter((line) => line.trim())
-    const allPrefixed = nonEmpty.length > 0 && nonEmpty.every(hasPrefix)
-    const prefixed = lines
-      .map((line) => {
-        if (!line.trim()) return line
-        if (allPrefixed) return stripPrefix(line)
-        if (hasPrefix(line)) return line
-        return `${prefix}${line}`
-      })
-      .join('\n')
+    return {
+      lineStart,
+      lineEnd,
+      lines: draft.slice(lineStart, lineEnd).split('\n'),
+    }
+  }
+
+  function applyLineBlock(lines: string[], lineStart: number, lineEnd: number) {
+    const prefixed = lines.join('\n')
     const nextDraft = `${draft.slice(0, lineStart)}${prefixed}${draft.slice(lineEnd)}`
     const caret = lineStart + prefixed.length
+    applyDraftSelection(nextDraft, caret, caret)
+  }
+
+  function prefixSelectedLines(prefix: string) {
+    const { lineStart, lineEnd, lines } = getSelectedLineBlock()
+    const numberedPrefix = prefix === '1. '
+    const taskPrefix = prefix === '- [ ] '
+    const hasPrefix = (line: string) => {
+      if (numberedPrefix) return /^\d+\.\s/.test(line)
+      if (taskPrefix) return /^- \[[ xX]\] /.test(line)
+      return line.startsWith(prefix)
+    }
+    const stripPrefix = (line: string) => {
+      if (numberedPrefix) return line.replace(/^\d+\.\s/, '')
+      if (taskPrefix) return line.replace(/^- \[[ xX]\] /, '')
+      return line.slice(prefix.length)
+    }
+    const nonEmpty = lines.filter((line) => line.trim())
+    const allPrefixed = nonEmpty.length > 0 && nonEmpty.every(hasPrefix)
+    const nextLines = lines.map((line) => {
+      if (!line.trim()) return line
+      if (allPrefixed) return stripPrefix(line)
+      if (hasPrefix(line)) return line
+      const withoutList = line
+        .replace(/^#{1,6}\s+/, '')
+        .replace(/^- \[[ xX]\] /, '')
+        .replace(/^\d+\.\s/, '')
+        .replace(/^[-*+]\s/, '')
+        .replace(/^>\s?/, '')
+      return `${prefix}${withoutList}`
+    })
+    applyLineBlock(nextLines, lineStart, lineEnd)
+  }
+
+  function applyHeadingLevel(level: 1 | 2 | 3 | 4) {
+    const prefix = `${'#'.repeat(level)} `
+    const headingRe = /^#{1,6}\s+/
+    const { lineStart, lineEnd, lines } = getSelectedLineBlock()
+    const headingLevel = (line: string) => {
+      const match = line.match(/^(#{1,6})\s+/)
+      return match ? match[1].length : 0
+    }
+    const nonEmpty = lines.filter((line) => line.trim())
+    const allSameLevel =
+      nonEmpty.length > 0 && nonEmpty.every((line) => headingLevel(line) === level)
+    const nextLines = lines.map((line) => {
+      if (!line.trim()) return line
+      const stripped = line.replace(headingRe, '')
+      if (allSameLevel) return stripped
+      return `${prefix}${stripped}`
+    })
+    applyLineBlock(nextLines, lineStart, lineEnd)
+  }
+
+  function insertBlockSnippet(snippet: string) {
+    const textarea = textareaRef.current
+    const start = textarea?.selectionStart ?? draft.length
+    const end = textarea?.selectionEnd ?? start
+    const before = draft.slice(0, start)
+    const after = draft.slice(end)
+    const leading = before.length > 0 && !before.endsWith('\n') ? '\n' : ''
+    const trailing = after.length > 0 && !after.startsWith('\n') ? '\n' : ''
+    const insertion = `${leading}${snippet}${trailing}`
+    const nextDraft = `${before}${insertion}${after}`
+    const caret = start + insertion.length
     applyDraftSelection(nextDraft, caret, caret)
   }
 
@@ -1504,16 +1569,62 @@ function DocView({
                 >
                   <Code2 size={14} aria-hidden="true" />
                 </button>
+                <button
+                  type="button"
+                  title="Tachado"
+                  aria-label="Tachado"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => wrapOrInsert('~~', '~~', 'tachado')}
+                >
+                  <Strikethrough size={14} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  title="Sublinhado"
+                  aria-label="Sublinhado"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => wrapOrInsert('++', '++', 'sublinhado')}
+                >
+                  <Underline size={14} aria-hidden="true" />
+                </button>
                 <span className="project-editor__format-toolbar-sep" aria-hidden="true" />
                 <button
                   type="button"
                   title="Título"
                   aria-label="Título"
                   onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => prefixSelectedLines('## ')}
+                  onClick={() => applyHeadingLevel(1)}
+                >
+                  <Heading1 size={14} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  title="Subtítulo"
+                  aria-label="Subtítulo"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => applyHeadingLevel(2)}
                 >
                   <Heading2 size={14} aria-hidden="true" />
                 </button>
+                <button
+                  type="button"
+                  title="Sub-subtítulo"
+                  aria-label="Sub-subtítulo"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => applyHeadingLevel(3)}
+                >
+                  <Heading3 size={14} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  title="Título nível 4"
+                  aria-label="Título nível 4"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => applyHeadingLevel(4)}
+                >
+                  <Heading4 size={14} aria-hidden="true" />
+                </button>
+                <span className="project-editor__format-toolbar-sep" aria-hidden="true" />
                 <button
                   type="button"
                   title="Lista"
@@ -1531,6 +1642,15 @@ function DocView({
                   onClick={() => prefixSelectedLines('1. ')}
                 >
                   <ListOrdered size={14} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  title="Lista de tarefas"
+                  aria-label="Lista de tarefas"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => prefixSelectedLines('- [ ] ')}
+                >
+                  <ListChecks size={14} aria-hidden="true" />
                 </button>
                 <button
                   type="button"
@@ -1559,6 +1679,26 @@ function DocView({
                   onClick={() => wrapOrInsert('```\n', '\n```', 'código')}
                 >
                   <FileCode size={14} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  title="Tabela"
+                  aria-label="Tabela"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() =>
+                    insertBlockSnippet('| Coluna 1 | Coluna 2 |\n| --- | --- |\n| valor | valor |')
+                  }
+                >
+                  <Table size={14} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  title="Linha horizontal"
+                  aria-label="Linha horizontal"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => insertBlockSnippet('---')}
+                >
+                  <Minus size={14} aria-hidden="true" />
                 </button>
               </div>
               <textarea
