@@ -265,11 +265,18 @@ function markdownHeadingParagraph(
 }
 
 function markdownParagraph(text: string) {
-  return new Paragraph({
-    alignment: AlignmentType.JUSTIFIED,
-    spacing: { after: 200, line: ABNT_LINE_SPACING },
-    children: inlineRuns(text),
-  })
+  const lines = text.split('\n')
+  return lines.map(
+    (line, index) =>
+      new Paragraph({
+        alignment: AlignmentType.JUSTIFIED,
+        spacing: {
+          after: index === lines.length - 1 ? 200 : 0,
+          line: ABNT_LINE_SPACING,
+        },
+        children: inlineRuns(line),
+      }),
+  )
 }
 
 function markdownQuote(lines: string[]) {
@@ -414,7 +421,7 @@ function blocksToDocxParagraphs(blocks: MarkdownBlock[], sectionDepth: number) {
       continue
     }
 
-    paragraphs.push(markdownParagraph(block.text))
+    paragraphs.push(...markdownParagraph(block.text))
   }
 
   return paragraphs

@@ -234,7 +234,7 @@ export function parseMarkdown(content: string): MarkdownBlock[] {
 
   function flushParagraph() {
     if (!paragraph.length) return
-    blocks.push({ type: 'paragraph', text: paragraph.join(' ') })
+    blocks.push({ type: 'paragraph', text: paragraph.join('\n') })
     paragraph = []
   }
 

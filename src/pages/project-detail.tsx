@@ -11,6 +11,7 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowUp,
+  Bold,
   BookOpen,
   Calendar,
   ChevronDown,
@@ -22,13 +23,18 @@ import {
   FileSpreadsheet,
   FileText,
   FileType2,
+  Heading2,
   History,
+  Italic,
   Lightbulb,
   Link2,
+  List,
+  ListOrdered,
   Minimize2,
   Paperclip,
   PencilLine,
   Plus,
+  Quote,
   Rocket,
   Save,
   Sparkles,
@@ -1134,6 +1140,56 @@ function DocView({
     showToast(successMessage)
   }
 
+  function applyDraftSelection(
+    nextDraft: string,
+    selectionStart: number,
+    selectionEnd: number,
+  ) {
+    onDraftChange(nextDraft)
+    window.requestAnimationFrame(() => {
+      const textarea = textareaRef.current
+      textarea?.focus()
+      textarea?.setSelectionRange(selectionStart, selectionEnd)
+    })
+  }
+
+  function wrapOrInsert(before: string, after = '', placeholder = '') {
+    const textarea = textareaRef.current
+    const start = textarea?.selectionStart ?? draft.length
+    const end = textarea?.selectionEnd ?? start
+    const selected = draft.slice(start, end)
+    const inner = selected || placeholder
+    const insertion = `${before}${inner}${after}`
+    const nextDraft = `${draft.slice(0, start)}${insertion}${draft.slice(end)}`
+    const innerStart = start + before.length
+
+    if (selected) {
+      applyDraftSelection(nextDraft, start + insertion.length, start + insertion.length)
+    } else {
+      applyDraftSelection(nextDraft, innerStart, innerStart + inner.length)
+    }
+  }
+
+  function prefixSelectedLines(prefix: string) {
+    const textarea = textareaRef.current
+    const start = textarea?.selectionStart ?? draft.length
+    const end = textarea?.selectionEnd ?? start
+    const lineStart = draft.lastIndexOf('\n', start - 1) + 1
+    const nextNewline = draft.indexOf('\n', end)
+    const lineEnd = nextNewline === -1 ? draft.length : nextNewline
+    const block = draft.slice(lineStart, lineEnd)
+    const prefixed = block
+      .split('\n')
+      .map((line) => {
+        if (!line.trim() || line.startsWith(prefix)) return line
+        return `${prefix}${line}`
+      })
+      .join('\n')
+    const nextDraft = `${draft.slice(0, lineStart)}${prefixed}${draft.slice(lineEnd)}`
+    const caret = lineStart + prefixed.length
+    applyDraftSelection(nextDraft, caret, caret)
+  }
+
   function insertAttachmentCitation(attachment: ProjectAttachment) {
     insertCitation(`[[arquivo:${attachment.name}]]`, 'Citação de arquivo inserida')
   }
@@ -1271,7 +1327,7 @@ function DocView({
   }
 
   return (
-    <section className="project-doc-layout">
+    <section className={`project-doc-layout${editing && canManage ? ' project-doc-layout--editing' : ''}`}>
       <aside className="project-sections-card">
         <div className="project-detail__panel-title">
           <span>Seções</span>
@@ -1373,6 +1429,91 @@ function DocView({
                 </button>
               </div>
               <div className="project-editor__label">Markdown</div>
+              <div className="project-editor__format-toolbar" role="toolbar" aria-label="Formatação Markdown">
+                <button
+                  type="button"
+                  title="Negrito"
+                  aria-label="Negrito"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => wrapOrInsert('**', '**', 'negrito')}
+                >
+                  <Bold size={14} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  title="Itálico"
+                  aria-label="Itálico"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => wrapOrInsert('*', '*', 'itálico')}
+                >
+                  <Italic size={14} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  title="Código"
+                  aria-label="Código"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => wrapOrInsert('`', '`', 'código')}
+                >
+                  <Code2 size={14} aria-hidden="true" />
+                </button>
+                <span className="project-editor__format-toolbar-sep" aria-hidden="true" />
+                <button
+                  type="button"
+                  title="Título"
+                  aria-label="Título"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => prefixSelectedLines('## ')}
+                >
+                  <Heading2 size={14} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  title="Lista"
+                  aria-label="Lista"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => prefixSelectedLines('- ')}
+                >
+                  <List size={14} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  title="Lista numerada"
+                  aria-label="Lista numerada"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => prefixSelectedLines('1. ')}
+                >
+                  <ListOrdered size={14} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  title="Citação"
+                  aria-label="Citação"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => prefixSelectedLines('> ')}
+                >
+                  <Quote size={14} aria-hidden="true" />
+                </button>
+                <span className="project-editor__format-toolbar-sep" aria-hidden="true" />
+                <button
+                  type="button"
+                  title="Link"
+                  aria-label="Link"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => wrapOrInsert('[', '](url)', 'texto')}
+                >
+                  <Link2 size={14} aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  title="Bloco de código"
+                  aria-label="Bloco de código"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => wrapOrInsert('```\n', '\n```', 'código')}
+                >
+                  <FileCode size={14} aria-hidden="true" />
+                </button>
+              </div>
               <textarea
                 ref={textareaRef}
                 value={draft}
@@ -1474,7 +1615,7 @@ function DocView({
         )}
       </article>
 
-      {!isDev && (
+      {!isDev && !(editing && canManage) && (
         <aside className="project-detail__aside">
           <ProjectInfo
             canManage={canManageInfo}

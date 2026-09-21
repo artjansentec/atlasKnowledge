@@ -102,7 +102,17 @@ export function MarkdownView({
           return <hr key={index} className="markdown-view__hr" />
         }
 
-        return <p key={index}>{render(block.text)}</p>
+        const lines = block.text.split('\n')
+        return (
+          <p key={index}>
+            {lines.map((line, lineIndex) => (
+              <span key={lineIndex}>
+                {lineIndex > 0 ? <br /> : null}
+                {render(line)}
+              </span>
+            ))}
+          </p>
+        )
       })}
     </div>
   )

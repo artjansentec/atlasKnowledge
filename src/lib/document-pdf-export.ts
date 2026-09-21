@@ -306,9 +306,12 @@ function writeMarkdownBlocks(writer: PdfWriter, blocks: MarkdownBlock[]) {
       continue
     }
 
-    writeWrappedText(writer, formatCitationText(block.text), {
-      spacingAfter: 2,
-      align: 'justify',
+    const lines = block.text.split('\n')
+    lines.forEach((line, index) => {
+      writeWrappedText(writer, formatCitationText(line), {
+        spacingAfter: index === lines.length - 1 ? 2 : 0.5,
+        align: 'justify',
+      })
     })
   }
 }

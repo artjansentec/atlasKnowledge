@@ -264,6 +264,10 @@
   gap: 20px;
 }
 
+.project-doc-layout--editing {
+  grid-template-columns: 220px minmax(0, 1fr);
+}
+
 .project-sections-card,
 .project-document-card,
 .project-detail__card,
@@ -809,6 +813,10 @@
   min-height: 62vh;
 }
 
+.project-doc-layout--editing .project-editor {
+  grid-template-columns: minmax(0, 1.75fr) minmax(0, 1fr);
+}
+
 .project-editor__pane {
   display: flex;
   min-width: 0;
@@ -861,6 +869,42 @@
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+}
+
+.project-editor__format-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  padding: 6px 10px;
+  background: color-mix(in oklch, var(--accent-bg) 35%, transparent);
+}
+
+.project-editor__format-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--muted-foreground);
+  background: transparent;
+  cursor: pointer;
+}
+
+.project-editor__format-toolbar button:hover {
+  border-color: rgba(var(--doc-accent-rgb), 0.28);
+  color: var(--doc-primary);
+  background: var(--surface);
+}
+
+.project-editor__format-toolbar-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--border);
 }
 
 .project-editor__attachments {
@@ -2539,7 +2583,8 @@
 .project-view-toggle__item:focus-visible,
 .project-section-create input:focus-visible,
 .project-editor__meta input:focus-visible,
-.project-editor textarea:focus-visible {
+.project-editor textarea:focus-visible,
+.project-editor__format-toolbar button:focus-visible {
   outline: 2px solid var(--doc-primary);
   outline-offset: 3px;
 }
@@ -2547,6 +2592,10 @@
 @media (max-width: 1240px) {
   .project-doc-layout {
     grid-template-columns: 250px minmax(0, 1fr);
+  }
+
+  .project-doc-layout--editing {
+    grid-template-columns: 220px minmax(0, 1fr);
   }
 
   .project-detail__aside {
