@@ -103,10 +103,6 @@
   box-shadow: none;
 }
 
-.project-detail__hero + .ai-credential-banner {
-  margin: -8px 0 24px;
-}
-
 .project-detail__title {
   display: flex;
   align-items: center;

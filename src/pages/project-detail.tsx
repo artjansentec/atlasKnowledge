@@ -53,7 +53,6 @@ import {
   X,
 } from 'lucide-react'
 import { confirmDanger, showToast } from '../components/app-alerts'
-import { AiCredentialBanner } from '../components/ai-credential-banner'
 import { DevResponsibleSelect } from '../components/dev-responsible-select'
 import { DocumentReaderDock } from '../components/document-reader-dock'
 import { MarkdownView } from '../components/markdown-view'
@@ -880,8 +879,6 @@ function ProjectDetailPage() {
             </Link>
           )}
         </header>
-
-        {canManageDoc && aiBlocked ? <AiCredentialBanner compact /> : null}
 
         {canSeeDev && (
           <div className="project-view-switch" role="tablist" aria-label="Trocar visualização do projeto">
