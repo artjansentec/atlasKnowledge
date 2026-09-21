@@ -1158,8 +1158,46 @@ function DocView({
     const start = textarea?.selectionStart ?? draft.length
     const end = textarea?.selectionEnd ?? start
     const selected = draft.slice(start, end)
+    const closer = after
+    const isSingleAsterisk = before === '*' && closer === '*'
+
+    const selectionLooksWrapped =
+      selected.length >= before.length + closer.length &&
+      selected.startsWith(before) &&
+      selected.endsWith(closer) &&
+      !(isSingleAsterisk && selected.startsWith('**') && selected.endsWith('**'))
+
+    if (selectionLooksWrapped) {
+      const inner = selected.slice(before.length, selected.length - closer.length)
+      const nextDraft = `${draft.slice(0, start)}${inner}${draft.slice(end)}`
+      applyDraftSelection(nextDraft, start, start + inner.length)
+      return
+    }
+
+    if (start >= before.length && end + closer.length <= draft.length) {
+      const beforeText = draft.slice(start - before.length, start)
+      const afterText = draft.slice(end, end + closer.length)
+      let surrounded = beforeText === before && afterText === closer
+
+      if (surrounded && isSingleAsterisk) {
+        const charBeforeMarker = start - before.length > 0 ? draft[start - before.length - 1] : ''
+        const charAfterMarker =
+          end + closer.length < draft.length ? draft[end + closer.length] : ''
+        if (charBeforeMarker === '*' || charAfterMarker === '*') {
+          surrounded = false
+        }
+      }
+
+      if (surrounded) {
+        const unwrapStart = start - before.length
+        const nextDraft = `${draft.slice(0, unwrapStart)}${selected}${draft.slice(end + closer.length)}`
+        applyDraftSelection(nextDraft, unwrapStart, unwrapStart + selected.length)
+        return
+      }
+    }
+
     const inner = selected || placeholder
-    const insertion = `${before}${inner}${after}`
+    const insertion = `${before}${inner}${closer}`
     const nextDraft = `${draft.slice(0, start)}${insertion}${draft.slice(end)}`
     const innerStart = start + before.length
 
@@ -1178,10 +1216,19 @@ function DocView({
     const nextNewline = draft.indexOf('\n', end)
     const lineEnd = nextNewline === -1 ? draft.length : nextNewline
     const block = draft.slice(lineStart, lineEnd)
-    const prefixed = block
-      .split('\n')
+    const lines = block.split('\n')
+    const numberedPrefix = prefix === '1. '
+    const hasPrefix = (line: string) =>
+      numberedPrefix ? /^\d+\.\s/.test(line) : line.startsWith(prefix)
+    const stripPrefix = (line: string) =>
+      numberedPrefix ? line.replace(/^\d+\.\s/, '') : line.slice(prefix.length)
+    const nonEmpty = lines.filter((line) => line.trim())
+    const allPrefixed = nonEmpty.length > 0 && nonEmpty.every(hasPrefix)
+    const prefixed = lines
       .map((line) => {
-        if (!line.trim() || line.startsWith(prefix)) return line
+        if (!line.trim()) return line
+        if (allPrefixed) return stripPrefix(line)
+        if (hasPrefix(line)) return line
         return `${prefix}${line}`
       })
       .join('\n')
